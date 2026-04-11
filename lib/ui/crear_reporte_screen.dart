@@ -86,18 +86,59 @@ class _CrearReporteScreenState extends State<CrearReporteScreen> {
     }
   }
 
-  Future<void> _seleccionarImagenes() async {
-    final List<XFile> imagenes = await _imagePicker.pickMultiImage();
-    if (imagenes.isNotEmpty) {
-      // NOTE: For now, we're saving local paths.
-      // You'll want to upload these to Firebase Storage later.
-      setState(() {
-        _urlsImagenes = imagenes.map((img) => img.path).toList();
-      });
+  void _mostrarOpcionesImagen() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(15)),
+      ),
+      builder: (BuildContext context) {
+        return SafeArea(
+          child: Wrap(
+            children: [
+              ListTile(
+                leading: const Icon(Icons.camera_alt, color: Colors.blue),
+                title: const Text('Tomar foto con cámara'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _capturarImagen(ImageSource.camera);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_library, color: Colors.blue),
+                title: const Text('Elegir de la galería'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _seleccionarDesdeGaleria();
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${imagenes.length} imagen(es) seleccionada(s)')),
-      );
+  Future<void> _capturarImagen(ImageSource source) async {
+    final XFile? imagen = await _imagePicker.pickImage(
+      source: source,
+      imageQuality: 50,
+    );
+    if (imagen != null) {
+      setState(() {
+        _urlsImagenes.add(imagen.path);
+      });
+    }
+  }
+
+  Future<void> _seleccionarDesdeGaleria() async {
+    final List<XFile> imagenes = await _imagePicker.pickMultiImage(
+      imageQuality: 50,
+    );
+    if (imagenes.isNotEmpty) {
+      setState(() {
+        _urlsImagenes.addAll(imagenes.map((img) => img.path));
+      });
     }
   }
 
@@ -297,7 +338,7 @@ class _CrearReporteScreenState extends State<CrearReporteScreen> {
 
             // Images selection
             ElevatedButton.icon(
-              onPressed: _seleccionarImagenes,
+              onPressed: _mostrarOpcionesImagen,
               icon: const Icon(Icons.add_photo_alternate),
               label: Text(
                 _urlsImagenes.isEmpty

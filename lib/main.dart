@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'auth/auth_ui/login_screen.dart';
 import 'auth/auth_viewmodel/auth_viewmodel.dart';
 import 'viewmodel/mapa_viewmodel.dart';
+import 'viewmodel/reportes_viewmodel.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -13,6 +14,7 @@ void main() async {
       providers: [
         ChangeNotifierProvider(create: (_) => AuthViewModel()),
         ChangeNotifierProvider(create: (_) => MapaViewModel()),
+        ChangeNotifierProvider(create: (_) => ReportesViewModel()),
       ],
       child: const MyApp(),
     ),

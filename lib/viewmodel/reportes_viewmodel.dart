@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../repo/reporte_service.dart';
 import '../model/report_model.dart';
+import 'dart:async';
 
 class ReportesViewModel extends ChangeNotifier {
   final ReporteService _reporteService = ReporteService();
@@ -10,8 +11,10 @@ class ReportesViewModel extends ChangeNotifier {
   bool cargando = false;
   String? error;
   List<ReporteModel> reportes = [];
-  String filtroActual = 'todos'; // 'todos', 'mis_reportes', 'alta', 'media', 'baja'
-  String ordenActual = 'fecha'; // 'fecha', 'corroboraciones', 'severidad'
+  String filtroActual = 'todos';
+  String ordenActual = 'fecha';
+
+  StreamSubscription? _reportesSubscription; // <-- Nuestra variable de control
 
   Future<void> cargarReportes() async {
     try {
@@ -33,8 +36,16 @@ class ReportesViewModel extends ChangeNotifier {
         stream = _reporteService.obtenerTodosReportes();
       }
 
-      stream.listen((reportesList) {
+      // Cancelamos cualquier escucha anterior para no duplicar datos
+      await _reportesSubscription?.cancel();
+
+      // Guardamos la nueva escucha
+      _reportesSubscription = stream.listen((reportesList) {
         reportes = reportesList;
+        cargando = false;
+        notifyListeners();
+      }, onError: (e) {
+        error = e.toString();
         cargando = false;
         notifyListeners();
       });
@@ -43,6 +54,13 @@ class ReportesViewModel extends ChangeNotifier {
       cargando = false;
       notifyListeners();
     }
+  }
+
+  // Es buena práctica limpiar la memoria cuando el ViewModel se destruye
+  @override
+  void dispose() {
+    _reportesSubscription?.cancel();
+    super.dispose();
   }
 
   void cambiarFiltro(String filtro) {
