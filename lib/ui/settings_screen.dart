@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -5,6 +7,10 @@ import 'package:flutter/services.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
 import '../auth/auth_ui/login_screen.dart';
+import '../auth/auth_model/auth_repository.dart';
+import 'dart:io';
+import 'package:image_picker/image_picker.dart';
+import 'package:path/path.dart' as p;
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -24,6 +30,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   String _domicilio = '';
   bool _cargando = true;
   bool _cargandoDomicilio = false;
+  String _fotoUrl = '';
+  bool _subiendoFoto = false;
 
   @override
   void initState() {
@@ -47,6 +55,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _telefono = data['telefono'] ?? '';
           _domicilio = data['domicilio'] ?? '';
           _cargando = false;
+          _fotoUrl = data['fotoUrl'] ?? '';
         });
       }
     } catch (e) {
@@ -83,6 +92,80 @@ class _SettingsScreenState extends State<SettingsScreen> {
               (route) => false,
         );
       }
+    }
+  }
+
+  // Esta es la nueva función principal
+  Future<void> _cambiarFotoPerfil() async {
+    showModalBottomSheet(
+      context: context,
+      builder: (BuildContext bc) {
+        return SafeArea(
+          child: Wrap(
+            children: <Widget>[
+              ListTile(
+                leading: const Icon(Icons.photo_library),
+                title: const Text('Galería'),
+                onTap: () {
+                  _seleccionarImagen(ImageSource.gallery);
+                  Navigator.of(context).pop();
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_camera),
+                title: const Text('Cámara'),
+                onTap: () {
+                  _seleccionarImagen(ImageSource.camera);
+                  Navigator.of(context).pop();
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _seleccionarImagen(ImageSource fuente) async {
+    final picker = ImagePicker();
+
+    try {
+      final XFile? image = await picker.pickImage(
+        source: fuente,
+        imageQuality: 40, // Bajamos a 40 para asegurar que entre en Firestore
+        maxWidth: 300,    // Un avatar no necesita más de 300px
+        maxHeight: 300,
+      );
+
+      if (image == null) return;
+
+      // Verificar si el widget sigue montado antes de hacer setState
+      if (!mounted) return;
+      setState(() => _subiendoFoto = true);
+
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid == null) throw 'No hay usuario autenticado';
+
+      // Leer el archivo de forma segura
+      final file = File(image.path);
+      if (!await file.exists()) throw 'El archivo de imagen no se encontró';
+
+      final repo = AuthRepository();
+      final urlBase64 = await repo.subirImagenBase64(uid, file);
+
+      if (mounted) {
+        setState(() {
+          _fotoUrl = urlBase64;
+        });
+        _mostrarMensaje('Foto de perfil actualizada');
+      }
+    } catch (e) {
+      debugPrint("Error al subir imagen: $e");
+      if (mounted) {
+        _mostrarMensaje('Error al procesar la foto: $e', error: true);
+      }
+    } finally {
+      if (mounted) setState(() => _subiendoFoto = false);
     }
   }
 
@@ -188,8 +271,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       appBar: AppBar(
         title: const Text('Ajustes'),
         backgroundColor: Colors.blue,
-        foregroundColor: Colors.white,
-        automaticallyImplyLeading: false,
+        foregroundColor: Colors.white,        automaticallyImplyLeading: false,
         actions: [
           IconButton(
             icon: const Icon(Icons.logout),
@@ -212,15 +294,47 @@ class _SettingsScreenState extends State<SettingsScreen> {
               padding: const EdgeInsets.all(20),
               child: Row(
                 children: [
-                  CircleAvatar(
-                    radius: 32,
-                    backgroundColor: Colors.blue.shade100,
-                    child: Icon(
-                      _role == 'admin'
-                          ? Icons.admin_panel_settings
-                          : Icons.person,
-                      size: 36,
-                      color: Colors.blue,
+                  GestureDetector(
+                    onTap: _subiendoFoto ? null : _cambiarFotoPerfil,
+                    child: Stack(
+                      children: [
+                        CircleAvatar(
+                          radius: 36,
+                          backgroundColor: Colors.blue.shade100,
+                          backgroundImage: _fotoUrl.isNotEmpty && _fotoUrl.contains(',')
+                              ? MemoryImage(base64Decode(_fotoUrl.split(',').last))
+                              : (_fotoUrl.isNotEmpty && _fotoUrl.startsWith('http')
+                              ? NetworkImage(_fotoUrl) as ImageProvider
+                              : null),
+                          child: _fotoUrl.isEmpty
+                              ? Icon(
+                            _role == 'admin' ? Icons.admin_panel_settings : Icons.person,
+                            size: 36,
+                            color: Colors.blue,
+                          )
+                              : null,
+                        ),
+                        Positioned(
+                          bottom: 0,
+                          right: 0,
+                          child: Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: const BoxDecoration(
+                              color: Colors.blue,
+                              shape: BoxShape.circle,
+                            ),
+                            child: _subiendoFoto
+                                ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                    color: Colors.white,
+                                    strokeWidth: 2))
+                                : const Icon(Icons.camera_alt,
+                                size: 16, color: Colors.white),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                   const SizedBox(width: 16),
@@ -229,40 +343,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          _nombre.isEmpty ? 'Usuario' : _nombre,
+                          _nombre,
                           style: const TextStyle(
-                            fontSize: 17,
-                            fontWeight: FontWeight.bold,
-                          ),
+                              fontSize: 18, fontWeight: FontWeight.bold),
                         ),
-                        const SizedBox(height: 4),
                         Text(
                           _correo,
-                          style: TextStyle(
-                              color: Colors.grey[600], fontSize: 13),
-                        ),
-                        const SizedBox(height: 6),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: _role == 'admin'
-                                ? Colors.orange.shade100
-                                : Colors.blue.shade100,
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: Text(
-                            _role == 'admin'
-                                ? 'Administrador'
-                                : 'Ciudadano',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: _role == 'admin'
-                                  ? Colors.orange.shade800
-                                  : Colors.blue.shade800,
-                            ),
-                          ),
+                          style: TextStyle(color: Colors.grey[600]),
                         ),
                       ],
                     ),
@@ -270,7 +357,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ],
               ),
             ),
-          ),
+          ), // Aquí se cierran Row, Padding y Card
 
           const SizedBox(height: 24),
 
@@ -289,7 +376,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
             _telefono.isEmpty ? 'Toca para agregar' : _telefono,
             subtituloColor:
             _telefono.isEmpty ? Colors.blue : Colors.grey[600],
-            trailing: const Icon(Icons.edit, size: 18, color: Colors.blue),
+            trailing:
+            const Icon(Icons.edit, size: 18, color: Colors.blue),
             onTap: _editarTelefono,
           ),
           _itemAjuste(

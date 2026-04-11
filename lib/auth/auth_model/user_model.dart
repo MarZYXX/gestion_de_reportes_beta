@@ -10,6 +10,7 @@ class UserModel {
   final DateTime createdAt;
   final String? telefono;
   final String? domicilio;
+  final String? fotoUrl;
 
   UserModel({
     required this.id,
@@ -21,12 +22,13 @@ class UserModel {
     required this.createdAt,
     this.telefono,
     this.domicilio,
+    this.fotoUrl,
   });
 
   factory UserModel.fromFirestore(DocumentSnapshot doc, String id) {
     final data = doc.data() as Map<String, dynamic>;
     return UserModel(
-      id: id,
+      id: data['id'] ?? '',
       nombre: data['nombre'] ?? '',
       apellidoPaterno: data['apellidoPaterno'] ?? '',
       apellidoMaterno: data['apellidoMaterno'] ?? '',
@@ -35,6 +37,7 @@ class UserModel {
       createdAt: (data['createdAt'] as Timestamp).toDate(),
       telefono: data['telefono'],
       domicilio: data['domicilio'],
+      fotoUrl: data['fotoUrl'],
     );
   }
 
@@ -48,6 +51,7 @@ class UserModel {
       'createdAt': Timestamp.fromDate(createdAt),
       if (telefono != null) 'telefono': telefono,
       if (domicilio != null) 'domicilio': domicilio,
+      if (fotoUrl != null) 'fotoUrl': fotoUrl,
     };
   }
 

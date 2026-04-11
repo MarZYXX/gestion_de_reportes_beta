@@ -1,23 +1,46 @@
+import 'dart:io';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:flutter/cupertino.dart';
 import '../auth_model/user_model.dart';
+import 'dart:io';
+import 'dart:convert';
+
 
 class AuthRepository {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseStorage _storage = FirebaseStorage.instance;
 
-  Future<UserModel> login(String email, String password) async {
-    final userCredential = await _auth.signInWithEmailAndPassword(
-      email: email,
-      password: password,
-    );
+  Future<UserCredential> login(String email, String password) async {
+    try {
+      return await _auth.signInWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+    } catch (e) {
+      throw Exception('Error al iniciar sesión: $e');
+    }
+  }
 
-    final userDoc = await _firestore
-        .collection('users')
-        .doc(userCredential.user!.uid)
-        .get();
+  Future<String> subirImagenBase64(String uid, File imageFile) async {
+    try {
+      final bytes = await imageFile.readAsBytes();
+      String base64Image = base64Encode(bytes);
+      String dataUrl = "data:image/jpeg;base64,$base64Image";
 
-    return UserModel.fromFirestore(userDoc, userCredential.user!.uid);
+      // LOG DE SEGURIDAD: Si esto mide más de 1,000,000, va a fallar.
+      debugPrint("Tamaño del Base64: ${dataUrl.length} caracteres");
+
+      await _firestore.collection('users').doc(uid).update({
+        'fotoUrl': dataUrl,
+      });
+
+      return dataUrl;
+    } catch (e) {
+      throw 'Error en Firestore: $e';
+    }
   }
 
   Future<UserModel> register({
@@ -51,12 +74,12 @@ class AuthRepository {
     return user;
   }
 
+  // --- OTROS MÉTODOS ---
   Future<String?> getUserRole(String userId) async {
     final doc = await _firestore.collection('users').doc(userId).get();
-    return doc.get('role') as String?;
+    return doc.exists ? (doc.get('role') as String?) : null;
   }
 
-  // Actualiza teléfono y/o domicilio del usuario en Firestore
   Future<void> actualizarPerfil({
     required String userId,
     String? telefono,

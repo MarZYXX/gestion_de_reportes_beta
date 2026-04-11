@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import '../auth_model/auth_repository.dart';
 import '../auth_model/user_model.dart';
+import 'package:cloud_firestore/cloud_firestore.dart'; // Añade esto para obtener el documento
 
 // viewmodel para autentificar
 class AuthViewModel extends ChangeNotifier {
@@ -36,8 +37,19 @@ class AuthViewModel extends ChangeNotifier {
     _setError(null);
 
     try {
-      final user = await _repository.login(email, password);
-      _setCurrentUser(user);
+      final userCredential = await _repository.login(email, password);
+      final String uid = userCredential.user!.uid;
+
+      final doc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
+
+      if (doc.exists) {
+        final userModel = UserModel.fromFirestore(doc, uid);
+        _setCurrentUser(userModel);
+      } else {
+        _setError('Datos de usuario no encontrados');
+        return false;
+      }
+
       return true;
     } catch (e) {
       _setError(_mapLoginError(e));
