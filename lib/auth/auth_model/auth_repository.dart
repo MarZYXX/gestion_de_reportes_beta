@@ -2,7 +2,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../auth_model/user_model.dart';
 
-// repositorio para autentificar
 class AuthRepository {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -55,5 +54,20 @@ class AuthRepository {
   Future<String?> getUserRole(String userId) async {
     final doc = await _firestore.collection('users').doc(userId).get();
     return doc.get('role') as String?;
+  }
+
+  // Actualiza teléfono y/o domicilio del usuario en Firestore
+  Future<void> actualizarPerfil({
+    required String userId,
+    String? telefono,
+    String? domicilio,
+  }) async {
+    final Map<String, dynamic> datos = {};
+    if (telefono != null) datos['telefono'] = telefono;
+    if (domicilio != null) datos['domicilio'] = domicilio;
+
+    if (datos.isNotEmpty) {
+      await _firestore.collection('users').doc(userId).update(datos);
+    }
   }
 }

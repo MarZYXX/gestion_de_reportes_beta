@@ -1,6 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-//logica de negocios
 class UserModel {
   final String id;
   final String nombre;
@@ -9,6 +8,8 @@ class UserModel {
   final String correo;
   final String role;
   final DateTime createdAt;
+  final String? telefono;
+  final String? domicilio;
 
   UserModel({
     required this.id,
@@ -18,6 +19,8 @@ class UserModel {
     required this.correo,
     required this.role,
     required this.createdAt,
+    this.telefono,
+    this.domicilio,
   });
 
   factory UserModel.fromFirestore(DocumentSnapshot doc, String id) {
@@ -30,6 +33,8 @@ class UserModel {
       correo: data['correo'] ?? '',
       role: data['role'] ?? 'usuario',
       createdAt: (data['createdAt'] as Timestamp).toDate(),
+      telefono: data['telefono'],
+      domicilio: data['domicilio'],
     );
   }
 
@@ -41,6 +46,25 @@ class UserModel {
       'correo': correo,
       'role': role,
       'createdAt': Timestamp.fromDate(createdAt),
+      if (telefono != null) 'telefono': telefono,
+      if (domicilio != null) 'domicilio': domicilio,
     };
+  }
+
+  UserModel copyWith({
+    String? telefono,
+    String? domicilio,
+  }) {
+    return UserModel(
+      id: id,
+      nombre: nombre,
+      apellidoPaterno: apellidoPaterno,
+      apellidoMaterno: apellidoMaterno,
+      correo: correo,
+      role: role,
+      createdAt: createdAt,
+      telefono: telefono ?? this.telefono,
+      domicilio: domicilio ?? this.domicilio,
+    );
   }
 }

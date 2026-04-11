@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../viewmodel/mapa_viewmodel.dart';
 import '../model/report_model.dart';
+import '../auth/auth_ui/login_screen.dart';
 import 'crear_reporte_screen.dart';
 
 class MapScreen extends StatefulWidget {
@@ -16,7 +17,6 @@ class MapScreen extends StatefulWidget {
 
 class _MapScreenState extends State<MapScreen> {
   final MapController _mapController = MapController();
-
   static const LatLng _posicionDefault = LatLng(20.6597, -103.3496);
 
   @override
@@ -26,11 +26,42 @@ class _MapScreenState extends State<MapScreen> {
       final viewModel = Provider.of<MapaViewModel>(context, listen: false);
       viewModel.inicializarMapa();
       viewModel.cargarReportes();
-
       viewModel.onReportTapped = (reporte) {
         _mostrarDetallesReporte(reporte);
       };
     });
+  }
+
+  Future<void> _cerrarSesion() async {
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Cerrar sesión'),
+        content: const Text('¿Estás seguro que deseas cerrar sesión?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Cerrar sesión',
+                style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+    if (confirmar == true) {
+      await FirebaseAuth.instance.signOut();
+      if (mounted) {
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (_) => const LoginScreen()),
+              (route) => false,
+        );
+      }
+    }
   }
 
   void _mostrarDetallesReporte(ReporteModel reporte) {
@@ -70,47 +101,43 @@ class _MapScreenState extends State<MapScreen> {
                         child: Text(
                           reporte.titulo,
                           style: const TextStyle(
-                            fontSize: 22,
-                            fontWeight: FontWeight.bold,
-                          ),
+                              fontSize: 22, fontWeight: FontWeight.bold),
                         ),
                       ),
                       Chip(
                         label: Text(reporte.getTextoSeveridad()),
-                        backgroundColor: reporte.getColorSeveridad().withOpacity(0.2),
-                        labelStyle: TextStyle(color: reporte.getColorSeveridad()),
+                        backgroundColor:
+                        reporte.getColorSeveridad().withOpacity(0.2),
+                        labelStyle:
+                        TextStyle(color: reporte.getColorSeveridad()),
                       ),
                     ],
                   ),
                   const SizedBox(height: 8),
-                  Text(
-                    reporte.descripcion,
-                    style: const TextStyle(fontSize: 16),
-                  ),
+                  Text(reporte.descripcion,
+                      style: const TextStyle(fontSize: 16)),
                   const SizedBox(height: 16),
                   Row(
                     children: [
-                      Icon(Icons.calendar_today, size: 16, color: Colors.grey[600]),
+                      Icon(Icons.calendar_today,
+                          size: 16, color: Colors.grey[600]),
                       const SizedBox(width: 4),
                       Text(
                         '${reporte.fechaIncidente.day}/${reporte.fechaIncidente.month}/${reporte.fechaIncidente.year}',
                         style: TextStyle(color: Colors.grey[600]),
                       ),
                       const SizedBox(width: 16),
-                      Icon(Icons.access_time, size: 16, color: Colors.grey[600]),
+                      Icon(Icons.access_time,
+                          size: 16, color: Colors.grey[600]),
                       const SizedBox(width: 4),
-                      Text(
-                        reporte.getHoraFormateada(),
-                        style: TextStyle(color: Colors.grey[600]),
-                      ),
+                      Text(reporte.getHoraFormateada(),
+                          style: TextStyle(color: Colors.grey[600])),
                     ],
                   ),
                   const SizedBox(height: 16),
                   if (reporte.urlsImagenes.isNotEmpty) ...[
-                    const Text(
-                      'Imágenes:',
-                      style: TextStyle(fontWeight: FontWeight.bold),
-                    ),
+                    const Text('Imágenes:',
+                        style: TextStyle(fontWeight: FontWeight.bold)),
                     const SizedBox(height: 8),
                     SizedBox(
                       height: 120,
@@ -166,7 +193,8 @@ class _MapScreenState extends State<MapScreen> {
                       if (reporte.severidadModificadaPorAdmin)
                         Column(
                           children: [
-                            const Icon(Icons.admin_panel_settings, color: Colors.orange),
+                            const Icon(Icons.admin_panel_settings,
+                                color: Colors.orange),
                             const SizedBox(height: 4),
                             const Text('Modificado'),
                             const Text('por admin'),
@@ -189,28 +217,30 @@ class _MapScreenState extends State<MapScreen> {
     return Consumer<MapaViewModel>(
       builder: (context, viewModel, child) {
         if (viewModel.cargando) {
-          return const Center(
-            child: CircularProgressIndicator(),
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
           );
         }
 
         if (viewModel.error != null) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(Icons.error_outline, size: 64, color: Colors.red),
-                const SizedBox(height: 16),
-                Text(viewModel.error!),
-                const SizedBox(height: 16),
-                ElevatedButton(
-                  onPressed: () {
-                    viewModel.inicializarMapa();
-                    viewModel.cargarReportes();
-                  },
-                  child: const Text('Reintentar'),
-                ),
-              ],
+          return Scaffold(
+            body: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.error_outline, size: 64, color: Colors.red),
+                  const SizedBox(height: 16),
+                  Text(viewModel.error!),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: () {
+                      viewModel.inicializarMapa();
+                      viewModel.cargarReportes();
+                    },
+                    child: const Text('Reintentar'),
+                  ),
+                ],
+              ),
             ),
           );
         }
@@ -222,50 +252,61 @@ class _MapScreenState extends State<MapScreen> {
         )
             : _posicionDefault;
 
-        return Stack(
-          children: [
-            FlutterMap(
-              mapController: _mapController,
-              options: MapOptions(
-                initialCenter: posicion,
-                initialZoom: 14,
+        return Scaffold(
+          appBar: AppBar(
+            title: const Text('Mapa de Reportes'),
+            backgroundColor: Colors.blue,
+            foregroundColor: Colors.white,
+            automaticallyImplyLeading: false,
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.logout),
+                tooltip: 'Cerrar sesión',
+                onPressed: _cerrarSesion,
               ),
-              children: [
-                TileLayer(
-                  urlTemplate: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
-                  userAgentPackageName: 'com.example.gestion_de_reportes',
+            ],
+          ),
+          body: Stack(
+            children: [
+              FlutterMap(
+                mapController: _mapController,
+                options: MapOptions(
+                  initialCenter: posicion,
+                  initialZoom: 14,
                 ),
-                MarkerLayer(
-                  markers: viewModel.marcadores,
-                ),
-                RichAttributionWidget(
-                  attributions: [
-                    TextSourceAttribution(
-                      '© OpenStreetMap contributors',
-                    ),
-                  ],
-                ),
-              ],
-            ),
-            Positioned(
-              bottom: 16,
-              right: 16,
-              child: FloatingActionButton(
-                onPressed: () async {
-                  final result = await Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const CrearReporteScreen(),
-                    ),
-                  );
-                  if (result == true) {
-                    viewModel.cargarReportes();
-                  }
-                },
-                child: const Icon(Icons.add),
+                children: [
+                  TileLayer(
+                    urlTemplate:
+                    'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                    userAgentPackageName: 'com.example.gestion_de_reportes',
+                  ),
+                  MarkerLayer(markers: viewModel.marcadores),
+                  RichAttributionWidget(
+                    attributions: [
+                      TextSourceAttribution('© OpenStreetMap contributors'),
+                    ],
+                  ),
+                ],
               ),
-            ),
-          ],
+              Positioned(
+                bottom: 16,
+                right: 16,
+                child: FloatingActionButton(
+                  onPressed: () async {
+                    final result = await Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (context) => const CrearReporteScreen()),
+                    );
+                    if (result == true) {
+                      viewModel.cargarReportes();
+                    }
+                  },
+                  child: const Icon(Icons.add),
+                ),
+              ),
+            ],
+          ),
         );
       },
     );
