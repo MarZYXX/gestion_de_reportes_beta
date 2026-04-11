@@ -13,6 +13,8 @@ class ReportesViewModel extends ChangeNotifier {
   List<ReporteModel> reportes = [];
   String filtroActual = 'todos';
   String ordenActual = 'fecha';
+  String filtroPrioridadLocal = 'todas';
+  bool mostrarSoloAtendidos = false;
 
   StreamSubscription? _reportesSubscription; // <-- Nuestra variable de control
 
@@ -88,5 +90,36 @@ class ReportesViewModel extends ChangeNotifier {
     final userId = _auth.currentUser?.uid;
     if (userId == null) return false;
     return reporte.corroboradoPor.contains(userId);
+  }
+
+  List<ReporteModel> get reportesFiltrados {
+    return reportes.where((r) {
+      final cumplePrioridad = filtroPrioridadLocal == 'todas' || r.severidad == filtroPrioridadLocal;
+      final cumpleAtendido = mostrarSoloAtendidos ? r.estaCompleto : true; // Si es true, solo muestra atendidos
+      return cumplePrioridad && cumpleAtendido;
+    }).toList();
+  }
+
+  // Métodos para cambiar los filtros
+  void setFiltroPrioridadLocal(String prioridad) {
+    filtroPrioridadLocal = prioridad;
+    notifyListeners();
+  }
+
+  void toggleMostrarAtendidos(bool valor) {
+    mostrarSoloAtendidos = valor;
+    notifyListeners();
+  }
+
+  // Método para eliminar
+  Future<void> eliminarReporteLocal(String reportId) async {
+    try {
+      await _reporteService.eliminarReporte(reportId);
+      // No necesitas quitarlo de la lista manualmente, el Stream de Firebase
+      // lo detectará y actualizará la pantalla automáticamente.
+    } catch (e) {
+      error = e.toString();
+      notifyListeners();
+    }
   }
 }

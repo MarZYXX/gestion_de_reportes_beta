@@ -1,5 +1,4 @@
 import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -10,7 +9,6 @@ import '../auth/auth_ui/login_screen.dart';
 import '../auth/auth_model/auth_repository.dart';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
-import 'package:path/path.dart' as p;
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -169,6 +167,57 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
+  void _verFotoPerfilCompleta(String base64Image) {
+    if (base64Image.isEmpty) return;
+
+    String pureBase64 = base64Image.contains(',')
+        ? base64Image.split(',').last
+        : base64Image;
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return Dialog(
+          backgroundColor: Colors.black87,
+          insetPadding: EdgeInsets.zero,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              InteractiveViewer(
+                panEnabled: true,
+                minScale: 0.5,
+                maxScale: 4.0,
+                child: Image.memory(
+                  base64Decode(pureBase64),
+                  fit: BoxFit.contain,
+                  width: double.infinity,
+                  height: double.infinity,
+                  errorBuilder: (context, error, stackTrace) => const Center(
+                    child: Text('Error al cargar imagen', style: TextStyle(color: Colors.white)),
+                  ),
+                ),
+              ),
+              Positioned(
+                top: 40,
+                right: 20,
+                child: Container(
+                  decoration: const BoxDecoration(
+                    color: Colors.black54,
+                    shape: BoxShape.circle,
+                  ),
+                  child: IconButton(
+                    icon: const Icon(Icons.close, color: Colors.white, size: 28),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   Future<void> _obtenerDomicilioGPS() async {
     setState(() => _cargandoDomicilio = true);
     try {
@@ -271,7 +320,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       appBar: AppBar(
         title: const Text('Ajustes'),
         backgroundColor: Colors.blue,
-        foregroundColor: Colors.white,        automaticallyImplyLeading: false,
+        foregroundColor: Colors.white,
+        automaticallyImplyLeading: false,
         actions: [
           IconButton(
             icon: const Icon(Icons.logout),
@@ -294,34 +344,48 @@ class _SettingsScreenState extends State<SettingsScreen> {
               padding: const EdgeInsets.all(20),
               child: Row(
                 children: [
-                  GestureDetector(
-                    onTap: _subiendoFoto ? null : _cambiarFotoPerfil,
-                    child: Stack(
-                      children: [
-                        CircleAvatar(
-                          radius: 36,
+                  // --- SECCIÓN DE FOTO DE PERFIL ADAPTADA ---
+                  Stack(
+                    alignment: Alignment.bottomRight,
+                    children: [
+                      // 1. GESTURE DETECTOR PARA VER LA FOTO
+                      GestureDetector(
+                        onTap: () {
+                          if (_fotoUrl.isNotEmpty) {
+                            _verFotoPerfilCompleta(_fotoUrl);
+                          }
+                        },
+                        child: CircleAvatar(
+                          radius: 40, // Tamaño ajustado para la tarjeta
                           backgroundColor: Colors.blue.shade100,
-                          backgroundImage: _fotoUrl.isNotEmpty && _fotoUrl.contains(',')
+                          backgroundImage: _fotoUrl.isNotEmpty
+                              ? (_fotoUrl.contains(',')
                               ? MemoryImage(base64Decode(_fotoUrl.split(',').last))
-                              : (_fotoUrl.isNotEmpty && _fotoUrl.startsWith('http')
+                              : (_fotoUrl.startsWith('http')
                               ? NetworkImage(_fotoUrl) as ImageProvider
-                              : null),
+                              : MemoryImage(base64Decode(_fotoUrl))))
+                              : null,
                           child: _fotoUrl.isEmpty
                               ? Icon(
                             _role == 'admin' ? Icons.admin_panel_settings : Icons.person,
-                            size: 36,
+                            size: 40,
                             color: Colors.blue,
                           )
                               : null,
                         ),
-                        Positioned(
-                          bottom: 0,
-                          right: 0,
+                      ),
+                      // 2. ÍCONO DE CÁMARA PARA CAMBIAR LA FOTO
+                      Positioned(
+                        right: 0,
+                        bottom: 0,
+                        child: GestureDetector(
+                          onTap: _subiendoFoto ? null : _cambiarFotoPerfil,
                           child: Container(
-                            padding: const EdgeInsets.all(4),
-                            decoration: const BoxDecoration(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
                               color: Colors.blue,
                               shape: BoxShape.circle,
+                              border: Border.all(color: Colors.white, width: 2),
                             ),
                             child: _subiendoFoto
                                 ? const SizedBox(
@@ -334,8 +398,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                 size: 16, color: Colors.white),
                           ),
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                   const SizedBox(width: 16),
                   Expanded(
@@ -357,7 +421,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ],
               ),
             ),
-          ), // Aquí se cierran Row, Padding y Card
+          ),
 
           const SizedBox(height: 24),
 
@@ -372,12 +436,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _itemAjuste(
             icon: Icons.phone_outlined,
             titulo: 'Teléfono',
-            subtitulo:
-            _telefono.isEmpty ? 'Toca para agregar' : _telefono,
-            subtituloColor:
-            _telefono.isEmpty ? Colors.blue : Colors.grey[600],
-            trailing:
-            const Icon(Icons.edit, size: 18, color: Colors.blue),
+            subtitulo: _telefono.isEmpty ? 'Toca para agregar' : _telefono,
+            subtituloColor: _telefono.isEmpty ? Colors.blue : Colors.grey[600],
+            trailing: const Icon(Icons.edit, size: 18, color: Colors.blue),
             onTap: _editarTelefono,
           ),
           _itemAjuste(
@@ -388,16 +449,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 : _domicilio.isEmpty
                 ? 'Toca para detectar'
                 : _domicilio,
-            subtituloColor:
-            _domicilio.isEmpty ? Colors.blue : Colors.grey[600],
+            subtituloColor: _domicilio.isEmpty ? Colors.blue : Colors.grey[600],
             trailing: _cargandoDomicilio
                 ? const SizedBox(
               width: 18,
               height: 18,
               child: CircularProgressIndicator(strokeWidth: 2),
             )
-                : const Icon(Icons.my_location,
-                size: 18, color: Colors.blue),
+                : const Icon(Icons.my_location, size: 18, color: Colors.blue),
             onTap: _cargandoDomicilio ? null : _obtenerDomicilioGPS,
           ),
           _itemAjuste(

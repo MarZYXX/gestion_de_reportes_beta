@@ -8,7 +8,8 @@ import '../repo/reporte_service.dart';
 import '../model/report_model.dart';
 
 class CrearReporteScreen extends StatefulWidget {
-  const CrearReporteScreen({super.key});
+  final ReporteModel? reporteOriginal;
+  const CrearReporteScreen({super.key, this.reporteOriginal});
 
   @override
   State<CrearReporteScreen> createState() => _CrearReporteScreenState();
@@ -34,7 +35,21 @@ class _CrearReporteScreenState extends State<CrearReporteScreen> {
   @override
   void initState() {
     super.initState();
-    _obtenerUbicacionActual();
+
+    // Si recibimos un reporte, estamos en modo EDICIÓN/VISTA
+    if (widget.reporteOriginal != null) {
+      _tituloController.text = widget.reporteOriginal!.titulo;
+      _descripcionController.text = widget.reporteOriginal!.descripcion;
+      _severidad = widget.reporteOriginal!.severidad;
+      _fechaIncidente = widget.reporteOriginal!.fechaIncidente;
+      _horaIncidente = widget.reporteOriginal!.horaIncidente;
+      _ubicacion = widget.reporteOriginal!.ubicacion;
+      _urlsImagenes = List.from(widget.reporteOriginal!.urlsImagenes);
+      // No llamamos a _obtenerUbicacionActual() porque ya tenemos la ubicación del reporte
+    } else {
+      // Si no recibimos reporte, es modo CREACIÓN
+      _obtenerUbicacionActual();
+    }
   }
 
   Future<void> _obtenerUbicacionActual() async {
@@ -142,6 +157,51 @@ class _CrearReporteScreenState extends State<CrearReporteScreen> {
     }
   }
 
+  void _verImagenPantallaCompleta(String rutaImagen) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return Dialog(
+          backgroundColor: Colors.black87, // Fondo oscuro para resaltar la imagen
+          insetPadding: EdgeInsets.zero, // Para que ocupe toda la pantalla
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              // InteractiveViewer nos regala el Zoom y el paneo con los dedos
+              InteractiveViewer(
+                panEnabled: true,
+                minScale: 0.5,
+                maxScale: 4.0,
+                // Nota: Si estás usando base64, cambia Image.file por Image.memory(base64Decode(rutaImagen))
+                child: Image.file(
+                  File(rutaImagen),
+                  fit: BoxFit.contain,
+                  width: double.infinity,
+                  height: double.infinity,
+                ),
+              ),
+              // Botón de cerrar en la esquina superior derecha
+              Positioned(
+                top: 40,
+                right: 20,
+                child: Container(
+                  decoration: const BoxDecoration(
+                    color: Colors.black54,
+                    shape: BoxShape.circle,
+                  ),
+                  child: IconButton(
+                    icon: const Icon(Icons.close, color: Colors.white, size: 28),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   Future<void> _guardarReporte() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -161,33 +221,47 @@ class _CrearReporteScreenState extends State<CrearReporteScreen> {
       final userId = _auth.currentUser?.uid;
       final userEmail = _auth.currentUser?.email ?? '';
 
-      if (userId == null) throw Exception('Usuario no autenticado');
-
-      final reporte = ReporteModel(
-        id: '', // Will be assigned by Firestore
-        userId: userId,
-        titulo: _tituloController.text,
-        descripcion: _descripcionController.text,
-        severidad: _severidad,
-        fechaIncidente: _fechaIncidente,
-        horaIncidente: _horaIncidente,
-        ubicacion: _ubicacion!,
-        urlsImagenes: _urlsImagenes,
-        contadorCorroboraciones: 0,
-        corroboradoPor: [],
-        estaCompleto: false,
-        fechaCreacion: DateTime.now(),
-        fechaCompletado: null,
-        severidadModificadaPorAdmin: false,
-      );
-
-      await _reporteService.crearReporte(reporte);
+      if (widget.reporteOriginal == null) {
+        // --- MODO CREAR ---
+        final reporte = ReporteModel(
+          id: '',
+          userId: userId!,
+          titulo: _tituloController.text,
+          descripcion: _descripcionController.text,
+          severidad: _severidad,
+          fechaIncidente: _fechaIncidente,
+          horaIncidente: _horaIncidente,
+          ubicacion: _ubicacion!,
+          urlsImagenes: _urlsImagenes,
+          contadorCorroboraciones: 0,
+          corroboradoPor: [],
+          estaCompleto: false,
+          fechaCreacion: DateTime.now(),
+          fechaCompletado: null,
+          severidadModificadaPorAdmin: false,
+        );
+        await _reporteService.crearReporte(reporte);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Reporte creado exitosamente')));
+        }
+      } else {
+        // --- MODO EDITAR ---
+        await _reporteService.actualizarReporte(widget.reporteOriginal!.id, {
+          'titulo': _tituloController.text,
+          'descripcion': _descripcionController.text,
+          'severidad': _severidad,
+          'fechaIncidente': Timestamp.fromDate(_fechaIncidente),
+          'horaHora': _horaIncidente.hour,
+          'horaMinuto': _horaIncidente.minute,
+          'urlsImagenes': _urlsImagenes, // Asumiendo que subes las nuevas en Base64 igual
+        });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Reporte actualizado exitosamente')));
+        }
+      }
 
       if (mounted) {
-        Navigator.pop(context, true); // Return true to indicate success
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Reporte creado exitosamente')),
-        );
+        Navigator.pop(context, true);
       }
     } catch (e) {
       setState(() => _error = e.toString());
@@ -200,7 +274,7 @@ class _CrearReporteScreenState extends State<CrearReporteScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Crear Nuevo Reporte'),
+        title: Text(widget.reporteOriginal == null ? 'Crear Nuevo Reporte' : 'Editar Reporte'),
         backgroundColor: Colors.blue,
         foregroundColor: Colors.white,
       ),
@@ -364,13 +438,16 @@ class _CrearReporteScreenState extends State<CrearReporteScreen> {
                       padding: const EdgeInsets.only(right: 8),
                       child: Stack(
                         children: [
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
-                            child: Image.file(
-                              File(_urlsImagenes[index]),
-                              width: 80,
-                              height: 80,
-                              fit: BoxFit.cover,
+                          GestureDetector(
+                            onTap: () => _verImagenPantallaCompleta(_urlsImagenes[index]),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: Image.file(
+                                File(_urlsImagenes[index]),
+                                width: 80,
+                                height: 80,
+                                fit: BoxFit.cover,
+                              ),
                             ),
                           ),
                           Positioned(
@@ -451,9 +528,9 @@ class _CrearReporteScreenState extends State<CrearReporteScreen> {
                   borderRadius: BorderRadius.circular(8),
                 ),
               ),
-              child: const Text(
-                'CREAR REPORTE',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              child: Text(
+                widget.reporteOriginal == null ? 'CREAR REPORTE' : 'ACTUALIZAR REPORTE',
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               ),
             ),
           ],

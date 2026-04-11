@@ -5,6 +5,9 @@ import 'package:intl/intl.dart'; // Para formatear la fecha
 import '../auth/auth_ui/login_screen.dart';
 import '../viewmodel/reportes_viewmodel.dart';
 import '../model/report_model.dart';
+import 'crear_reporte_screen.dart';
+
+enum OpcionesMenu { editar, eliminar }
 
 class ReportsScreen extends StatefulWidget {
   const ReportsScreen({super.key});
@@ -17,7 +20,6 @@ class _ReportsScreenState extends State<ReportsScreen> {
   @override
   void initState() {
     super.initState();
-    // Cargamos los reportes del usuario actual apenas inicia la pantalla
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Provider.of<ReportesViewModel>(context, listen: false)
           .cambiarFiltro('mis_reportes');
@@ -56,6 +58,43 @@ class _ReportsScreenState extends State<ReportsScreen> {
     }
   }
 
+  void _confirmarEliminacion(String reportId, ReportesViewModel vm) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Eliminar reporte'),
+        content: const Text('¿Estás seguro de que deseas eliminar este reporte? Esta acción no se puede deshacer.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              vm.eliminarReporteLocal(reportId);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Reporte eliminado'), backgroundColor: Colors.red),
+              );
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Eliminar', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _abrirDetalleEdicion(BuildContext context, ReporteModel reporte) {
+    // Importa CrearReporteScreen arriba si no lo tienes
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => CrearReporteScreen(reporteOriginal: reporte),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -74,109 +113,155 @@ class _ReportsScreenState extends State<ReportsScreen> {
       ),
       body: Consumer<ReportesViewModel>(
         builder: (context, vm, child) {
-          if (vm.cargando) {
-            return const Center(child: CircularProgressIndicator());
-          }
+          if (vm.cargando) return const Center(child: CircularProgressIndicator());
+          if (vm.error != null) return Center(child: Text('Error: ${vm.error}', style: const TextStyle(color: Colors.red)));
 
-          if (vm.error != null) {
-            return Center(
-              child: Text('Error: ${vm.error}', style: const TextStyle(color: Colors.red)),
-            );
-          }
+          // Obtenemos la lista usando nuestro nuevo getter filtrado
+          final reportesMostrar = vm.reportesFiltrados;
 
-          if (vm.reportes.isEmpty) {
-            return const Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.list_alt, size: 80, color: Colors.grey),
-                  SizedBox(height: 16),
-                  Text('Aún no has creado ningún reporte',
-                      style: TextStyle(color: Colors.grey, fontSize: 16)),
-                ],
-              ),
-            );
-          }
-
-          // Si hay reportes, mostramos la lista con RefreshIndicator
-          return RefreshIndicator(
-            onRefresh: () async {
-              await vm.cargarReportes();
-            },
-            child: ListView.builder(
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.all(12),
-              itemCount: vm.reportes.length,
-              itemBuilder: (context, index) {
-                final ReporteModel reporte = vm.reportes[index];
-                return Card(
-                  elevation: 2,
-                  margin: const EdgeInsets.symmetric(vertical: 8),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    side: BorderSide(
-                      color: reporte.getColorSeveridad().withOpacity(0.5),
-                      width: 1,
-                    ),
-                  ),
-                  child: ListTile(
-                    contentPadding: const EdgeInsets.all(16),
-                    title: Text(
-                      reporte.titulo,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
+          return Column(
+            children: [
+              // --- SECCIÓN DE FILTROS ---
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                color: Colors.grey.shade50,
+                width: double.infinity,
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      const Icon(Icons.filter_list, color: Colors.grey, size: 20),
+                      const SizedBox(width: 8),
+                      // Filtro Atendidos
+                      FilterChip(
+                        label: const Text('Atendidos'),
+                        selected: vm.mostrarSoloAtendidos,
+                        selectedColor: Colors.green.shade100,
+                        onSelected: (val) => vm.toggleMostrarAtendidos(val),
                       ),
-                    ),
-                    subtitle: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const SizedBox(height: 8),
-                        Text(
-                          reporte.descripcion,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 8),
-                        Row(
-                          children: [
-                            Icon(Icons.calendar_today,
-                                size: 14, color: Colors.grey[600]),
-                            const SizedBox(width: 4),
-                            Text(
-                              DateFormat('dd/MM/yyyy')
-                                  .format(reporte.fechaIncidente),
-                              style: TextStyle(
-                                  color: Colors.grey[600], fontSize: 12),
-                            ),
-                            const Spacer(),
-                            // Indicador de severidad usando la lógica de tu modelo
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 8, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: reporte
-                                    .getColorSeveridad()
-                                    .withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Text(
-                                'Severidad: ${reporte.getTextoSeveridad()}',
-                                style: TextStyle(
-                                  color: reporte.getColorSeveridad(),
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                          ],
-                        )
-                      ],
-                    ),
+                      const SizedBox(width: 8),
+                      // Filtro Severidad
+                      FilterChip(
+                        label: const Text('Alta'),
+                        selected: vm.filtroPrioridadLocal == 'alta',
+                        selectedColor: Colors.red.shade100,
+                        onSelected: (val) => vm.setFiltroPrioridadLocal(val ? 'alta' : 'todas'),
+                      ),
+                      const SizedBox(width: 8),
+                      FilterChip(
+                        label: const Text('Media'),
+                        selected: vm.filtroPrioridadLocal == 'media',
+                        selectedColor: Colors.orange.shade100,
+                        onSelected: (val) => vm.setFiltroPrioridadLocal(val ? 'media' : 'todas'),
+                      ),
+                      const SizedBox(width: 8),
+                      FilterChip(
+                        label: const Text('Baja'),
+                        selected: vm.filtroPrioridadLocal == 'baja',
+                        selectedColor: Colors.blue.shade100,
+                        onSelected: (val) => vm.setFiltroPrioridadLocal(val ? 'baja' : 'todas'),
+                      ),
+                    ],
                   ),
-                );
-              },
-            ),
+                ),
+              ),
+              const Divider(height: 1),
+
+              // --- LISTA DE REPORTES ---
+              Expanded(
+                child: reportesMostrar.isEmpty
+                    ? const Center(
+                  child: Text('No hay reportes que coincidan con los filtros.',
+                      style: TextStyle(color: Colors.grey, fontSize: 16)),
+                )
+                    : RefreshIndicator(
+                  onRefresh: () async => await vm.cargarReportes(),
+                  child: ListView.builder(
+                    padding: const EdgeInsets.all(12),
+                    itemCount: reportesMostrar.length,
+                    itemBuilder: (context, index) {
+                      final ReporteModel reporte = reportesMostrar[index];
+                      return Card(
+                        elevation: 2,
+                        margin: const EdgeInsets.symmetric(vertical: 8),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          side: BorderSide(color: reporte.getColorSeveridad().withOpacity(0.5), width: 1),
+                        ),
+                        child: ListTile(
+                          onTap: () => _abrirDetalleEdicion(context, reporte),
+                          contentPadding: const EdgeInsets.all(16),
+                          title: Text(
+                            reporte.titulo,
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                          ),
+                          // TRES PUNTITOS PARA EDITAR/ELIMINAR
+                          trailing: PopupMenuButton<OpcionesMenu>(
+                            icon: const Icon(Icons.more_vert, color: Colors.grey),
+                            onSelected: (opcion) {
+                              if (opcion == OpcionesMenu.eliminar) {
+                                _confirmarEliminacion(reporte.id, vm);
+                              } else if (opcion == OpcionesMenu.editar) {
+                                _abrirDetalleEdicion(context, reporte);
+                              }
+                            },
+                            itemBuilder: (context) => [
+                              const PopupMenuItem(
+                                value: OpcionesMenu.editar,
+                                child: Row(children: [Icon(Icons.edit, color: Colors.blue), SizedBox(width: 8), Text('Editar')]),
+                              ),
+                              const PopupMenuItem(
+                                value: OpcionesMenu.eliminar,
+                                child: Row(children: [Icon(Icons.delete, color: Colors.red), SizedBox(width: 8), Text('Eliminar')]),
+                              ),
+                            ],
+                          ),
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const SizedBox(height: 8),
+                              Text(reporte.descripcion, maxLines: 2, overflow: TextOverflow.ellipsis),
+                              const SizedBox(height: 8),
+                              Row(
+                                children: [
+                                  Icon(Icons.calendar_today, size: 14, color: Colors.grey[600]),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    DateFormat('dd/MM/yyyy').format(reporte.fechaIncidente),
+                                    style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                                  ),
+                                  const Spacer(),
+                                  // Indicador de estado (Nuevo)
+                                  if (reporte.estaCompleto)
+                                    Container(
+                                      margin: const EdgeInsets.only(right: 8),
+                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                      decoration: BoxDecoration(color: Colors.green, borderRadius: BorderRadius.circular(4)),
+                                      child: const Text('Atendido', style: TextStyle(color: Colors.white, fontSize: 10)),
+                                    ),
+                                  // Indicador de severidad
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: reporte.getColorSeveridad().withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Text(
+                                      reporte.getTextoSeveridad(),
+                                      style: TextStyle(color: reporte.getColorSeveridad(), fontSize: 12, fontWeight: FontWeight.bold),
+                                    ),
+                                  ),
+                                ],
+                              )
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+            ],
           );
         },
       ),

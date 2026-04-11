@@ -105,6 +105,24 @@ class ReporteService {
     });
   }
 
+  // Eliminar reporte
+  Future<void> eliminarReporte(String reportId) async {
+    try {
+      await _firestore.collection('reportes').doc(reportId).delete();
+    } catch (e) {
+      throw Exception('Error al eliminar reporte: $e');
+    }
+  }
+
+  // Actualizar reporte completo (para cuando hagas la vista de edición)
+  Future<void> actualizarReporte(String reportId, Map<String, dynamic> dataActualizada) async {
+    try {
+      await _firestore.collection('reportes').doc(reportId).update(dataActualizada);
+    } catch (e) {
+      throw Exception('Error al actualizar reporte: $e');
+    }
+  }
+
   // Mark report as completed
   Future<void> marcarComoCompletado(String reportId) async {
     await _firestore.collection('reportes').doc(reportId).update({
