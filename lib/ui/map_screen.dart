@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
@@ -7,6 +9,8 @@ import '../viewmodel/mapa_viewmodel.dart';
 import '../model/report_model.dart';
 import '../auth/auth_ui/login_screen.dart';
 import 'crear_reporte_screen.dart';
+import 'package:flutter_map_marker_cluster/flutter_map_marker_cluster.dart';
+import 'dart:convert';
 
 class MapScreen extends StatefulWidget {
   const MapScreen({super.key});
@@ -149,20 +153,7 @@ class _MapScreenState extends State<MapScreen> {
                             padding: const EdgeInsets.only(right: 8),
                             child: ClipRRect(
                               borderRadius: BorderRadius.circular(8),
-                              child: Image.network(
-                                reporte.urlsImagenes[index],
-                                width: 120,
-                                height: 120,
-                                fit: BoxFit.cover,
-                                errorBuilder: (context, error, stackTrace) {
-                                  return Container(
-                                    width: 120,
-                                    height: 120,
-                                    color: Colors.grey[300],
-                                    child: const Icon(Icons.broken_image),
-                                  );
-                                },
-                              ),
+                              child: _construirImagenSegura(reporte.urlsImagenes[index]),
                             ),
                           );
                         },
@@ -275,12 +266,59 @@ class _MapScreenState extends State<MapScreen> {
                   initialZoom: 14,
                 ),
                 children: [
+
                   TileLayer(
-                    urlTemplate:
-                    'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                    urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                     userAgentPackageName: 'com.example.gestion_de_reportes',
                   ),
-                  MarkerLayer(markers: viewModel.marcadores),
+
+                  MarkerClusterLayerWidget(
+                    options: MarkerClusterLayerOptions(
+                      maxClusterRadius: 45,
+                      size: const Size(40, 40),
+                      alignment: Alignment.center,
+                      padding: const EdgeInsets.all(50),
+                      maxZoom: 15,
+                      markers: _crearListaDeMarcadores(viewModel.reportes),
+                      builder: (context, markers) {
+                        final reportMarkers = markers.whereType<ReporteMarker>().toList();
+
+                        bool tieneAlta = false;
+                        bool tieneMedia = false;
+
+                        for (var marker in reportMarkers) {
+                          if (marker.reporte.severidad == 'alta') tieneAlta = true;
+                          if (marker.reporte.severidad == 'media') tieneMedia = true;
+                        }
+
+                        Color colorRecuadro = Colors.green;
+                        if (tieneAlta) {
+                          colorRecuadro = Colors.red;
+                        } else if (tieneMedia) {
+                          colorRecuadro = Colors.orange;
+                        }
+
+                        return GestureDetector(
+                          onTap: () {
+                            final listaReportes = reportMarkers.map((m) => m.reporte).toList();
+                            _mostrarVentanaFlotante(context, listaReportes);
+                          },
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: colorRecuadro,
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: Colors.white, width: 2),
+                              boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 4)],
+                            ),
+                            child: const Center(
+                              child: Icon(Icons.add, color: Colors.white, size: 24),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+
                   RichAttributionWidget(
                     attributions: [
                       TextSourceAttribution('© OpenStreetMap contributors'),
@@ -311,4 +349,161 @@ class _MapScreenState extends State<MapScreen> {
       },
     );
   }
+
+  List<Marker> _crearListaDeMarcadores(List<ReporteModel> reportes) {
+    return reportes.map((reporte) {
+      return ReporteMarker(
+        reporte: reporte,
+        point: LatLng(reporte.ubicacion.latitude, reporte.ubicacion.longitude),
+        child: GestureDetector(
+          onTap: () => _mostrarDetallesReporte(reporte),
+          child: Container(
+            decoration: BoxDecoration(
+              color: reporte.getColorSeveridad(),
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white, width: 2),
+            ),
+            child: const Icon(Icons.warning, color: Colors.white, size: 18),
+          ),
+        ),
+      );
+    }).toList();
+  }
+
+  // --- LA VENTANA FLOTANTE (BOTTOM SHEET DE LISTA) ---
+  void _mostrarVentanaFlotante(BuildContext context, List<ReporteModel> reportesOriginales) {
+    // 1. ORDENAR LOS REPORTES POR SEVERIDAD (Alta > Media > Baja)
+    final List<ReporteModel> reportesOrdenados = List.from(reportesOriginales);
+    reportesOrdenados.sort((a, b) {
+      int getValor(String severidad) {
+        if (severidad == 'alta') return 1;
+        if (severidad == 'media') return 2;
+        return 3; // baja
+      }
+      return getValor(a.severidad).compareTo(getValor(b.severidad));
+    });
+
+    showModalBottomSheet(
+        context: context,
+        backgroundColor: Colors.transparent,
+        isScrollControlled: true,
+        builder: (context) {
+          return Container(
+            padding: const EdgeInsets.all(16),
+            constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.6),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(10))),
+                const SizedBox(height: 16),
+
+                Text(
+                  '${reportesOrdenados.length} Incidentes en esta zona',
+                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 16),
+
+                Flexible(
+                  child: ListView.builder(
+                      shrinkWrap: true,
+                      // Usamos la lista ordenada
+                      itemCount: reportesOrdenados.length,
+                      itemBuilder: (context, index) {
+                        final r = reportesOrdenados[index];
+                        return Card(
+                          elevation: 2,
+                          margin: const EdgeInsets.only(bottom: 12),
+                          shape: RoundedRectangleBorder(
+                              side: BorderSide(color: r.getColorSeveridad().withOpacity(0.5)),
+                              borderRadius: BorderRadius.circular(12)
+                          ),
+                          child: ListTile(
+                            title: Text(r.titulo, style: const TextStyle(fontWeight: FontWeight.bold)),
+                            subtitle: Text(r.descripcion, maxLines: 2, overflow: TextOverflow.ellipsis),
+                            trailing: Icon(Icons.chevron_right, color: r.getColorSeveridad()),
+                            onTap: () {
+                              // 2. CERRAR LA LISTA Y ABRIR LOS DETALLES DEL REPORTE
+                              Navigator.pop(context); // Cierra la ventanita de la lista
+                              _mostrarDetallesReporte(r); // Abre tu vista original de detalles
+                            },
+                          ),
+                        );
+                      }
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+    );
+  }
+
+  // --- CONSTRUCTOR ROBUSTO DE IMÁGENES ---
+  Widget _construirImagenSegura(String rutaOBase64) {
+    try {
+      // 1. Si es una ruta de archivo local (Tus reportes antiguos)
+      if (rutaOBase64.startsWith('/data') || rutaOBase64.startsWith('file://')) {
+        return Image.file(
+          File(rutaOBase64),
+          width: 120,
+          height: 120,
+          fit: BoxFit.cover,
+        );
+      }
+
+      // 2. Si es una URL de red (por si acaso)
+      if (rutaOBase64.startsWith('http')) {
+        return Image.network(
+          rutaOBase64,
+          width: 120,
+          height: 120,
+          fit: BoxFit.cover,
+        );
+      }
+
+      // 3. Es un Base64: Limpiamos la cadena por si trae prefijos
+      String cleanBase64 = rutaOBase64;
+      if (cleanBase64.contains(',')) {
+        cleanBase64 = cleanBase64.split(',').last;
+      }
+
+      // Aseguramos el padding para evitar el error de "Invalid length"
+      cleanBase64 = cleanBase64.replaceAll(RegExp(r'\s+'), '');
+      while (cleanBase64.length % 4 != 0) {
+        cleanBase64 += '=';
+      }
+
+      return Image.memory(
+        base64Decode(cleanBase64),
+        width: 120,
+        height: 120,
+        fit: BoxFit.cover,
+      );
+    } catch (e) {
+      // Si todo falla, mostramos un recuadro gris con ícono de error
+      // en lugar de que la pantalla roja bloquee la app
+      return Container(
+        width: 120,
+        height: 120,
+        color: Colors.grey[300],
+        child: const Icon(Icons.broken_image, color: Colors.grey),
+      );
+    }
+  }
+}
+
+class ReporteMarker extends Marker {
+  final ReporteModel reporte;
+
+  ReporteMarker({
+    required this.reporte,
+    required super.point,
+    required super.child,
+    super.width = 40.0,
+    super.height = 40.0,
+  });
 }

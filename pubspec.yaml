@@ -46,6 +46,7 @@ dependencies:
   flutter_map: ^8.2.2
   latlong2: ^0.9.1
   firebase_storage: ^13.2.0
+  flutter_map_marker_cluster: ^8.2.2
 
 
 dev_dependencies:
