@@ -22,7 +22,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Provider.of<ReportesViewModel>(context, listen: false)
-          .cambiarFiltro('mis_reportes');
+          .cambiarFiltro('todos');
     });
   }
 
@@ -86,7 +86,6 @@ class _ReportsScreenState extends State<ReportsScreen> {
   }
 
   void _abrirDetalleEdicion(BuildContext context, ReporteModel reporte) {
-    // Importa CrearReporteScreen arriba si no lo tienes
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -99,7 +98,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Mis Reportes'),
+        title: const Text('Reportes'),
         backgroundColor: Colors.blue,
         foregroundColor: Colors.white,
         automaticallyImplyLeading: false,
@@ -116,7 +115,6 @@ class _ReportsScreenState extends State<ReportsScreen> {
           if (vm.cargando) return const Center(child: CircularProgressIndicator());
           if (vm.error != null) return Center(child: Text('Error: ${vm.error}', style: const TextStyle(color: Colors.red)));
 
-          // Obtenemos la lista usando nuestro nuevo getter filtrado
           final reportesMostrar = vm.reportesFiltrados;
 
           return Column(
@@ -132,7 +130,6 @@ class _ReportsScreenState extends State<ReportsScreen> {
                     children: [
                       const Icon(Icons.filter_list, color: Colors.grey, size: 20),
                       const SizedBox(width: 8),
-                      // Filtro Atendidos
                       FilterChip(
                         label: const Text('Atendidos'),
                         selected: vm.mostrarSoloAtendidos,
@@ -140,7 +137,13 @@ class _ReportsScreenState extends State<ReportsScreen> {
                         onSelected: (val) => vm.toggleMostrarAtendidos(val),
                       ),
                       const SizedBox(width: 8),
-                      // Filtro Severidad
+                      FilterChip(
+                        label: const Text('Mis reportes'),
+                        selected: vm.filtroActual == 'mis_reportes',
+                        selectedColor: Colors.blue.shade100,
+                        onSelected: (val) => vm.cambiarFiltro(val ? 'mis_reportes' : 'todos'),
+                      ),
+                      const SizedBox(width: 8),
                       FilterChip(
                         label: const Text('Alta'),
                         selected: vm.filtroPrioridadLocal == 'alta',
@@ -231,7 +234,6 @@ class _ReportsScreenState extends State<ReportsScreen> {
                                     style: TextStyle(color: Colors.grey[600], fontSize: 12),
                                   ),
                                   const Spacer(),
-                                  // Indicador de estado (Nuevo)
                                   if (reporte.estaCompleto)
                                     Container(
                                       margin: const EdgeInsets.only(right: 8),
@@ -239,7 +241,6 @@ class _ReportsScreenState extends State<ReportsScreen> {
                                       decoration: BoxDecoration(color: Colors.green, borderRadius: BorderRadius.circular(4)),
                                       child: const Text('Atendido', style: TextStyle(color: Colors.white, fontSize: 10)),
                                     ),
-                                  // Indicador de severidad
                                   Container(
                                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                     decoration: BoxDecoration(
