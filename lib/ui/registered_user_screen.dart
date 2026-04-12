@@ -64,7 +64,7 @@ class _RegisteredUserScreenState extends State<RegisteredUserScreen> {
             BottomNavigationBarItem(
                 icon: Icon(Icons.list_alt), label: 'Mis Reportes'),
             BottomNavigationBarItem(
-                icon: Icon(Icons.settings), label: 'Ajustes'),
+                icon: Icon(Icons.settings), label: 'Perfil'),
           ],
         ),
       ),
