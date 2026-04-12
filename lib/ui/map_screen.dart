@@ -5,6 +5,8 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../model/comentario_model.dart';
+import '../repo/reporte_service.dart';
 import '../viewmodel/mapa_viewmodel.dart';
 import '../model/report_model.dart';
 import '../auth/auth_ui/login_screen.dart';
@@ -246,49 +248,197 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   void _mostrarVentanaComentarios(BuildContext context, ReporteModel reporte) {
+    final TextEditingController comentarioController = TextEditingController();
+    final ReporteService reporteService = ReporteService();
+
     showModalBottomSheet(
-        context: context,
-        isScrollControlled: true,
-        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-        builder: (context) {
-          return Padding(
-            padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
-            child: Container(
-              height: MediaQuery.of(context).size.height * 0.5,
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                children: [
-                  const Text('Comentarios de los Vecinos', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                  const Divider(),
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return Padding(
+          padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+          child: Container(
+            height: MediaQuery.of(context).size.height * 0.6,
+            padding: const EdgeInsets.all(16),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+            ),
+            child: Column(
+              children: [
+                Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(10))),
+                const SizedBox(height: 16),
+                const Text('Comentarios de los Vecinos', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                const Divider(),
 
-                  const Expanded(
-                    child: Center(child: Text('Aún no hay comentarios. Sé el primero.')),
+                Expanded(
+                  child: StreamBuilder<List<ComentarioModel>>(
+                    stream: reporteService.obtenerComentarios(reporte.id),
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return const Center(child: CircularProgressIndicator());
+                      }
+                      if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                        return const Center(
+                          child: Text('Aún no hay comentarios.\nSé el primero en aportar información.', textAlign: TextAlign.center, style: TextStyle(color: Colors.grey)),
+                        );
+                      }
+
+                      final comentarios = snapshot.data!;
+                      return ListView.builder(
+                        itemCount: comentarios.length,
+                        itemBuilder: (context, index) {
+                          final comentario = comentarios[index];
+                          final currentUserUid = FirebaseAuth.instance.currentUser?.uid;
+                          final esMiComentario = currentUserUid == comentario.userId;
+
+                          return Card(
+                            elevation: 0,
+                            color: Colors.grey.shade100,
+                            margin: const EdgeInsets.only(bottom: 8),
+                            child: ListTile(
+                              leading: CircleAvatar(
+                                backgroundColor: Colors.blue.shade100,
+                                child: const Icon(Icons.person, color: Colors.blue),
+                              ),
+                              title: Text(esMiComentario ? 'Tú (Anónimo)' : 'Vecino Anónimo', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                              subtitle: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const SizedBox(height: 4),
+                                  Text(comentario.texto),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    '${comentario.fecha.day}/${comentario.fecha.month}/${comentario.fecha.year}',
+                                    style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
+                                  ),
+                                ],
+                              ),
+                              trailing: esMiComentario
+                                  ? PopupMenuButton<String>(
+                                icon: const Icon(Icons.more_vert, color: Colors.grey),
+                                onSelected: (value) {
+                                  if (value == 'editar') {
+                                    _editarComentario(reporte.id, comentario, reporteService);
+                                  } else if (value == 'eliminar') {
+                                    _eliminarComentario(reporte.id, comentario.id, reporteService);
+                                  }
+                                },
+                                itemBuilder: (context) => [
+                                  const PopupMenuItem(value: 'editar', child: Row(children: [Icon(Icons.edit, size: 18, color: Colors.blue), SizedBox(width: 8), Text('Editar')])),
+                                  const PopupMenuItem(value: 'eliminar', child: Row(children: [Icon(Icons.delete, size: 18, color: Colors.red), SizedBox(width: 8), Text('Eliminar')])),
+                                ],
+                              )
+                                  : null,
+                            ),
+                          );
+                        },
+                      );
+                    },
                   ),
+                ),
 
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          decoration: InputDecoration(
-                            hintText: 'Añadir un comentario (Anónimo)...',
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(20)),
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 16),
-                          ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: comentarioController,
+                        textCapitalization: TextCapitalization.sentences,
+                        decoration: InputDecoration(
+                          hintText: 'Añadir un comentario (Anónimo)...',
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(25)),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                         ),
                       ),
-                      IconButton(
-                        icon: const Icon(Icons.send, color: Colors.blue),
-                        onPressed: () {
-                          // TODO: Guardar comentario en Firebase
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      decoration: const BoxDecoration(color: Colors.blue, shape: BoxShape.circle),
+                      child: IconButton(
+                        icon: const Icon(Icons.send, color: Colors.white, size: 20),
+                        onPressed: () async {
+                          final texto = comentarioController.text.trim();
+                          if (texto.isEmpty) return;
+
+                          final userId = FirebaseAuth.instance.currentUser?.uid;
+                          if (userId != null) {
+                            comentarioController.clear();
+                            await reporteService.agregarComentario(reporte.id, userId, texto);
+                          }
                         },
-                      )
-                    ],
-                  )
-                ],
-              ),
+                      ),
+                    )
+                  ],
+                )
+              ],
             ),
-          );
-        }
+          ),
+        );
+      },
+    );
+  }
+
+  // --- DIÁLOGO PARA EDITAR COMENTARIO ---
+  void _editarComentario(String reportId, ComentarioModel comentario, ReporteService servicio) {
+    final TextEditingController editController = TextEditingController(text: comentario.texto);
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Editar Comentario'),
+        content: TextField(
+          controller: editController,
+          textCapitalization: TextCapitalization.sentences,
+          maxLines: 3,
+          decoration: const InputDecoration(
+            border: OutlineInputBorder(),
+            hintText: 'Modifica tu comentario...',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final nuevoTexto = editController.text.trim();
+              if (nuevoTexto.isNotEmpty && nuevoTexto != comentario.texto) {
+                await servicio.actualizarComentario(reportId, comentario.id, nuevoTexto);
+              }
+              if (context.mounted) Navigator.pop(context);
+            },
+            child: const Text('Guardar'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // --- DIÁLOGO PARA ELIMINAR COMENTARIO ---
+  void _eliminarComentario(String reportId, String comentarioId, ReporteService servicio) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Eliminar Comentario'),
+        content: const Text('¿Estás seguro de que deseas borrar este comentario? Esta acción no se puede deshacer.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () async {
+              await servicio.eliminarComentario(reportId, comentarioId);
+              if (context.mounted) Navigator.pop(context);
+            },
+            child: const Text('Eliminar', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
     );
   }
 
@@ -529,7 +679,6 @@ class _MapScreenState extends State<MapScreen> {
     );
   }
 
-  // --- CONSTRUCTOR ROBUSTO DE IMÁGENES ---
   Widget _construirImagenSegura(String rutaOBase64) {
     try {
       if (rutaOBase64.startsWith('/data') || rutaOBase64.startsWith('file://')) {
@@ -567,8 +716,6 @@ class _MapScreenState extends State<MapScreen> {
         fit: BoxFit.cover,
       );
     } catch (e) {
-      // Si todo falla, mostramos un recuadro gris con ícono de error
-      // en lugar de que la pantalla roja bloquee la app
       return Container(
         width: 120,
         height: 120,

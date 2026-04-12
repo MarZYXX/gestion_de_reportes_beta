@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import '../model/comentario_model.dart';
 import '../model/report_model.dart';
 
 class ReporteService {
@@ -138,5 +139,72 @@ class ReporteService {
       'estaCompleto': true,
       'fechaCompletado': Timestamp.now(),
     });
+  }
+
+  // Importa el nuevo modelo en la parte superior del archivo:
+  // import '../model/comentario_model.dart';
+
+  // --- MÉTODOS PARA COMENTARIOS ---
+
+  // 1. Agregar un comentario nuevo
+  Future<void> agregarComentario(String reportId, String userId, String texto) async {
+    try {
+      await _firestore
+          .collection('reportes')
+          .doc(reportId)
+          .collection('comentarios') // Creamos/Accedemos a la subcolección
+          .add({
+        'userId': userId,
+        'texto': texto,
+        'fecha': Timestamp.now(),
+      });
+    } catch (e) {
+      throw Exception('Error al agregar comentario: $e');
+    }
+  }
+
+  // 2. Escuchar los comentarios en tiempo real (ordenados del más reciente al más antiguo)
+  Stream<List<ComentarioModel>> obtenerComentarios(String reportId) {
+    return _firestore
+        .collection('reportes')
+        .doc(reportId)
+        .collection('comentarios')
+        .orderBy('fecha', descending: true)
+        .snapshots()
+        .map((snapshot) {
+      return snapshot.docs
+          .map((doc) => ComentarioModel.fromFirestore(doc))
+          .toList();
+    });
+  }
+
+  // 3. Actualizar un comentario
+  Future<void> actualizarComentario(String reportId, String comentarioId, String nuevoTexto) async {
+    try {
+      await _firestore
+          .collection('reportes')
+          .doc(reportId)
+          .collection('comentarios')
+          .doc(comentarioId)
+          .update({
+        'texto': nuevoTexto,
+      });
+    } catch (e) {
+      throw Exception('Error al actualizar comentario: $e');
+    }
+  }
+
+  // 4. Eliminar un comentario
+  Future<void> eliminarComentario(String reportId, String comentarioId) async {
+    try {
+      await _firestore
+          .collection('reportes')
+          .doc(reportId)
+          .collection('comentarios')
+          .doc(comentarioId)
+          .delete();
+    } catch (e) {
+      throw Exception('Error al eliminar comentario: $e');
+    }
   }
 }
