@@ -1,5 +1,4 @@
 import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
@@ -151,9 +150,12 @@ class _MapScreenState extends State<MapScreen> {
                         itemBuilder: (context, index) {
                           return Padding(
                             padding: const EdgeInsets.only(right: 8),
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(8),
-                              child: _construirImagenSegura(reporte.urlsImagenes[index]),
+                            child: GestureDetector(
+                              onTap: () => _verImagenPantallaCompleta(reporte.urlsImagenes[index]),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: _construirImagenSegura(reporte.urlsImagenes[index]),
+                              ),
                             ),
                           );
                         },
@@ -493,6 +495,58 @@ class _MapScreenState extends State<MapScreen> {
         child: const Icon(Icons.broken_image, color: Colors.grey),
       );
     }
+  }
+
+  // --- VISOR DE IMAGEN A PANTALLA COMPLETA TOTAL ---
+  void _verImagenPantallaCompleta(String rutaOBase64) {
+    if (rutaOBase64.isEmpty) return; // No mostrar si no hay imagen
+
+    // En lugar de showDialog, usamos Navigator.push para una nueva PageRoute
+    Navigator.push(
+      context,
+      PageRouteBuilder(
+        opaque: false, // Permite ver un poco detrás si el fondo no es opaco
+        barrierColor: Colors.black, // Color de fondo de la barrera (negro total)
+        pageBuilder: (BuildContext context, _, __) {
+          // El constructor de la página debe contener Scaffold para pantalla completa nativa
+          return Scaffold(
+            backgroundColor: Colors.black, // Fondo negro total para la página
+            body: Stack(
+              alignment: Alignment.center,
+              children: [
+                // 1. InteractiveViewer ocupa TODO el espacio disponible
+                InteractiveViewer(
+                  panEnabled: true,
+                  minScale: 0.5,
+                  maxScale: 4.0,
+                  // Reutilizamos tu función inteligente para construir la imagen segura
+                  child: Center(
+                    child: _construirImagenSegura(rutaOBase64),
+                  ),
+                ),
+                Positioned(
+                  top: 40,
+                  right: 20,
+                  child: Container(
+                    decoration: const BoxDecoration(
+                      color: Colors.black54,
+                      shape: BoxShape.circle,
+                    ),
+                    child: IconButton(
+                      icon: const Icon(Icons.close, color: Colors.white, size: 28),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          return FadeTransition(opacity: animation, child: child);
+        },
+      ),
+    );
   }
 }
 
