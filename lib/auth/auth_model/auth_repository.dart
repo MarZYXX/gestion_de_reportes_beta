@@ -4,7 +4,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/cupertino.dart';
 import '../auth_model/user_model.dart';
-import 'dart:io';
 import 'dart:convert';
 
 
@@ -74,7 +73,6 @@ class AuthRepository {
     return user;
   }
 
-  // --- OTROS MÉTODOS ---
   Future<String?> getUserRole(String userId) async {
     final doc = await _firestore.collection('users').doc(userId).get();
     return doc.exists ? (doc.get('role') as String?) : null;

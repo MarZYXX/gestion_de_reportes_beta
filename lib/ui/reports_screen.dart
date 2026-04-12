@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:provider/provider.dart';
-import 'package:intl/intl.dart'; // Para formatear la fecha
+import 'package:intl/intl.dart';
 import '../auth/auth_ui/login_screen.dart';
 import '../viewmodel/reportes_viewmodel.dart';
 import '../model/report_model.dart';
@@ -96,6 +96,8 @@ class _ReportsScreenState extends State<ReportsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Reportes'),
@@ -184,6 +186,8 @@ class _ReportsScreenState extends State<ReportsScreen> {
                     itemCount: reportesMostrar.length,
                     itemBuilder: (context, index) {
                       final ReporteModel reporte = reportesMostrar[index];
+                      final bool esPropio = reporte.userId == currentUserId;
+
                       return Card(
                         elevation: 2,
                         margin: const EdgeInsets.symmetric(vertical: 8),
@@ -192,14 +196,14 @@ class _ReportsScreenState extends State<ReportsScreen> {
                           side: BorderSide(color: reporte.getColorSeveridad().withOpacity(0.5), width: 1),
                         ),
                         child: ListTile(
-                          onTap: () => _abrirDetalleEdicion(context, reporte),
+                          onTap: esPropio ? () => _abrirDetalleEdicion(context, reporte) : null,
                           contentPadding: const EdgeInsets.all(16),
                           title: Text(
                             reporte.titulo,
                             style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                           ),
-                          // TRES PUNTITOS PARA EDITAR/ELIMINAR
-                          trailing: PopupMenuButton<OpcionesMenu>(
+                          // TRES PUNTITOS PARA EDITAR/ELIMINAR - SOLO SI ES PROPIO (MISMO USUARIO PUEDE EDITAR SUS REPORTES, NO DE OTROS)
+                          trailing: esPropio ? PopupMenuButton<OpcionesMenu>(
                             icon: const Icon(Icons.more_vert, color: Colors.grey),
                             onSelected: (opcion) {
                               if (opcion == OpcionesMenu.eliminar) {
@@ -218,7 +222,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                                 child: Row(children: [Icon(Icons.delete, color: Colors.red), SizedBox(width: 8), Text('Eliminar')]),
                               ),
                             ],
-                          ),
+                          ) : null,
                           subtitle: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
