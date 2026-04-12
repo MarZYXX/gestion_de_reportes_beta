@@ -68,6 +68,20 @@ class MapaViewModel extends ChangeNotifier {
       throw Exception('Permiso de ubicación denegado');
     }
   }
+
+  Future<void> corroborarReporte(String reportId) async {
+    final userId = FirebaseAuth.instance.currentUser?.uid;
+    if (userId == null) return;
+
+    try {
+      // Necesitarás instanciar tu ReporteService aquí si no lo tienes
+      await ReporteService().corroborarReporte(reportId, userId);
+      // Como el mapa escucha Firebase en tiempo real, el número subirá automáticamente
+    } catch (e) {
+      error = "Error al corroborar: $e";
+      notifyListeners();
+    }
+  }
 }
 
 class _TrianglePainter extends CustomPainter {

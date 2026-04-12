@@ -497,29 +497,24 @@ class _MapScreenState extends State<MapScreen> {
     }
   }
 
-  // --- VISOR DE IMAGEN A PANTALLA COMPLETA TOTAL ---
   void _verImagenPantallaCompleta(String rutaOBase64) {
-    if (rutaOBase64.isEmpty) return; // No mostrar si no hay imagen
+    if (rutaOBase64.isEmpty) return;
 
-    // En lugar de showDialog, usamos Navigator.push para una nueva PageRoute
     Navigator.push(
       context,
       PageRouteBuilder(
-        opaque: false, // Permite ver un poco detrás si el fondo no es opaco
-        barrierColor: Colors.black, // Color de fondo de la barrera (negro total)
+        opaque: false,
+        barrierColor: Colors.black,
         pageBuilder: (BuildContext context, _, __) {
-          // El constructor de la página debe contener Scaffold para pantalla completa nativa
           return Scaffold(
-            backgroundColor: Colors.black, // Fondo negro total para la página
+            backgroundColor: Colors.black,
             body: Stack(
               alignment: Alignment.center,
               children: [
-                // 1. InteractiveViewer ocupa TODO el espacio disponible
                 InteractiveViewer(
                   panEnabled: true,
                   minScale: 0.5,
                   maxScale: 4.0,
-                  // Reutilizamos tu función inteligente para construir la imagen segura
                   child: Center(
                     child: _construirImagenSegura(rutaOBase64),
                   ),
