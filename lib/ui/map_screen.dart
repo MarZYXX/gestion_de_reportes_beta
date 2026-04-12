@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
@@ -67,141 +68,227 @@ class _MapScreenState extends State<MapScreen> {
     }
   }
 
-  void _mostrarDetallesReporte(ReporteModel reporte) {
+  void _mostrarDetallesReporte(ReporteModel reporteInicial) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (context) {
-        return DraggableScrollableSheet(
-          initialChildSize: 0.5,
-          minChildSize: 0.3,
-          maxChildSize: 0.9,
-          expand: false,
-          builder: (context, scrollController) {
-            return SingleChildScrollView(
-              controller: scrollController,
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Center(
-                    child: Container(
-                      width: 40,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: Colors.grey[300],
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
+        return StreamBuilder<DocumentSnapshot>(
+          stream: FirebaseFirestore.instance.collection('reportes').doc(
+              reporteInicial.id).snapshots(),
+          builder: (context, snapshot) {
+            if (!snapshot.hasData)
+              return const Center(child: CircularProgressIndicator());
+
+            final reporte = ReporteModel.fromFirestore(snapshot.data!);
+            return DraggableScrollableSheet(
+              initialChildSize: 0.5,
+              minChildSize: 0.3,
+              maxChildSize: 0.9,
+              expand: false,
+              builder: (context, scrollController) {
+                return SingleChildScrollView(
+                  controller: scrollController,
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
                     children: [
-                      Expanded(
-                        child: Text(
-                          reporte.titulo,
-                          style: const TextStyle(
-                              fontSize: 22, fontWeight: FontWeight.bold),
+                      Center(
+                        child: Container(
+                          width: 40,
+                          height: 4,
+                          decoration: BoxDecoration(
+                            color: Colors.grey[300],
+                            borderRadius: BorderRadius.circular(2),
+                          ),
                         ),
                       ),
-                      Chip(
-                        label: Text(reporte.getTextoSeveridad()),
-                        backgroundColor:
-                        reporte.getColorSeveridad().withOpacity(0.2),
-                        labelStyle:
-                        TextStyle(color: reporte.getColorSeveridad()),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Text(reporte.descripcion,
-                      style: const TextStyle(fontSize: 16)),
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Icon(Icons.calendar_today,
-                          size: 16, color: Colors.grey[600]),
-                      const SizedBox(width: 4),
-                      Text(
-                        '${reporte.fechaIncidente.day}/${reporte.fechaIncidente.month}/${reporte.fechaIncidente.year}',
-                        style: TextStyle(color: Colors.grey[600]),
-                      ),
-                      const SizedBox(width: 16),
-                      Icon(Icons.access_time,
-                          size: 16, color: Colors.grey[600]),
-                      const SizedBox(width: 4),
-                      Text(reporte.getHoraFormateada(),
-                          style: TextStyle(color: Colors.grey[600])),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  if (reporte.urlsImagenes.isNotEmpty) ...[
-                    const Text('Imágenes:',
-                        style: TextStyle(fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 8),
-                    SizedBox(
-                      height: 120,
-                      child: ListView.builder(
-                        scrollDirection: Axis.horizontal,
-                        itemCount: reporte.urlsImagenes.length,
-                        itemBuilder: (context, index) {
-                          return Padding(
-                            padding: const EdgeInsets.only(right: 8),
-                            child: GestureDetector(
-                              onTap: () => _verImagenPantallaCompleta(reporte.urlsImagenes[index]),
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(8),
-                                child: _construirImagenSegura(reporte.urlsImagenes[index]),
-                              ),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              reporte.titulo,
+                              style: const TextStyle(
+                                  fontSize: 22, fontWeight: FontWeight.bold),
                             ),
-                          );
-                        },
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                  ],
-                  const Divider(),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
-                    children: [
-                      Column(
-                        children: [
-                          const Icon(Icons.thumb_up, color: Colors.blue),
-                          const SizedBox(height: 4),
-                          Text('${reporte.contadorCorroboraciones}'),
-                          const Text('Corroboraciones'),
+                          ),
+                          Chip(
+                            label: Text(reporte.getTextoSeveridad()),
+                            backgroundColor:
+                            reporte.getColorSeveridad().withOpacity(0.2),
+                            labelStyle:
+                            TextStyle(color: reporte.getColorSeveridad()),
+                          ),
                         ],
                       ),
-                      Column(
+                      const SizedBox(height: 8),
+                      Text(reporte.descripcion,
+                          style: const TextStyle(fontSize: 16)),
+                      const SizedBox(height: 16),
+                      Row(
                         children: [
-                          const Icon(Icons.verified, color: Colors.green),
-                          const SizedBox(height: 4),
-                          Text(reporte.estaCompleto ? 'Sí' : 'No'),
-                          const Text('Completado'),
+                          Icon(Icons.calendar_today,
+                              size: 16, color: Colors.grey[600]),
+                          const SizedBox(width: 4),
+                          Text(
+                            '${reporte.fechaIncidente.day}/${reporte
+                                .fechaIncidente.month}/${reporte.fechaIncidente
+                                .year}',
+                            style: TextStyle(color: Colors.grey[600]),
+                          ),
+                          const SizedBox(width: 16),
+                          Icon(Icons.access_time,
+                              size: 16, color: Colors.grey[600]),
+                          const SizedBox(width: 4),
+                          Text(reporte.getHoraFormateada(),
+                              style: TextStyle(color: Colors.grey[600])),
                         ],
                       ),
-                      if (reporte.severidadModificadaPorAdmin)
-                        Column(
-                          children: [
-                            const Icon(Icons.admin_panel_settings,
-                                color: Colors.orange),
-                            const SizedBox(height: 4),
-                            const Text('Modificado'),
-                            const Text('por admin'),
-                          ],
+                      const SizedBox(height: 16),
+                      if (reporte.urlsImagenes.isNotEmpty) ...[
+                        const Text('Imágenes:',
+                            style: TextStyle(fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 8),
+                        SizedBox(
+                          height: 120,
+                          child: ListView.builder(
+                            scrollDirection: Axis.horizontal,
+                            itemCount: reporte.urlsImagenes.length,
+                            itemBuilder: (context, index) {
+                              return Padding(
+                                padding: const EdgeInsets.only(right: 8),
+                                child: GestureDetector(
+                                  onTap: () =>
+                                      _verImagenPantallaCompleta(
+                                          reporte.urlsImagenes[index]),
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(8),
+                                    child: _construirImagenSegura(
+                                        reporte.urlsImagenes[index]),
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
                         ),
+                        const SizedBox(height: 16),
+                      ],
+                      const Divider(),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceAround,
+                        children: [
+                          GestureDetector(
+                            onTap: () {
+                              Provider
+                                  .of<MapaViewModel>(context, listen: false)
+                                  .corroborarReporte(reporte.id);
+                            },
+                            child: Column(
+                              children: [
+                                Icon(
+                                  reporte.corroboradoPor.contains(
+                                      FirebaseAuth.instance.currentUser?.uid)
+                                      ? Icons.thumb_up
+                                      : Icons.thumb_up_alt_outlined,
+                                  color: Colors.blue,
+                                ),
+                                const SizedBox(height: 4),
+                                Text('${reporte.contadorCorroboraciones}'),
+                                const Text('Apoyos'),
+                              ],
+                            ),
+                          ),
+
+                          GestureDetector(
+                            onTap: () {
+                              // TODO: Abrir ventana de comentarios
+                              _mostrarVentanaComentarios(context, reporte);
+                            },
+                            child: const Column(
+                              children: [
+                                Icon(Icons.comment_outlined,
+                                    color: Colors.orange),
+                                SizedBox(height: 4),
+                                Text('Ver'),
+                                Text('Comentar'),
+                              ],
+                            ),
+                          ),
+
+                          Column(
+                            children: [
+                              Icon(
+                                reporte.estaCompleto ? Icons.verified : Icons
+                                    .pending_actions,
+                                color: reporte.estaCompleto
+                                    ? Colors.green
+                                    : Colors.grey,
+                              ),
+                              const SizedBox(height: 4),
+                              Text(reporte.estaCompleto ? 'Sí' : 'No'),
+                              const Text('Resuelto'),
+                            ],
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
                     ],
                   ),
-                  const SizedBox(height: 16),
-                ],
-              ),
+                );
+              },
             );
           },
         );
       },
+    );
+  }
+
+  void _mostrarVentanaComentarios(BuildContext context, ReporteModel reporte) {
+    showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+        builder: (context) {
+          return Padding(
+            padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+            child: Container(
+              height: MediaQuery.of(context).size.height * 0.5,
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                children: [
+                  const Text('Comentarios de los Vecinos', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  const Divider(),
+
+                  const Expanded(
+                    child: Center(child: Text('Aún no hay comentarios. Sé el primero.')),
+                  ),
+
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          decoration: InputDecoration(
+                            hintText: 'Añadir un comentario (Anónimo)...',
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(20)),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.send, color: Colors.blue),
+                        onPressed: () {
+                          // TODO: Guardar comentario en Firebase
+                        },
+                      )
+                    ],
+                  )
+                ],
+              ),
+            ),
+          );
+        }
     );
   }
 
@@ -372,9 +459,7 @@ class _MapScreenState extends State<MapScreen> {
     }).toList();
   }
 
-  // --- LA VENTANA FLOTANTE (BOTTOM SHEET DE LISTA) ---
   void _mostrarVentanaFlotante(BuildContext context, List<ReporteModel> reportesOriginales) {
-    // 1. ORDENAR LOS REPORTES POR SEVERIDAD (Alta > Media > Baja)
     final List<ReporteModel> reportesOrdenados = List.from(reportesOriginales);
     reportesOrdenados.sort((a, b) {
       int getValor(String severidad) {
@@ -447,7 +532,6 @@ class _MapScreenState extends State<MapScreen> {
   // --- CONSTRUCTOR ROBUSTO DE IMÁGENES ---
   Widget _construirImagenSegura(String rutaOBase64) {
     try {
-      // 1. Si es una ruta de archivo local (Tus reportes antiguos)
       if (rutaOBase64.startsWith('/data') || rutaOBase64.startsWith('file://')) {
         return Image.file(
           File(rutaOBase64),
@@ -457,7 +541,6 @@ class _MapScreenState extends State<MapScreen> {
         );
       }
 
-      // 2. Si es una URL de red (por si acaso)
       if (rutaOBase64.startsWith('http')) {
         return Image.network(
           rutaOBase64,
@@ -467,13 +550,11 @@ class _MapScreenState extends State<MapScreen> {
         );
       }
 
-      // 3. Es un Base64: Limpiamos la cadena por si trae prefijos
       String cleanBase64 = rutaOBase64;
       if (cleanBase64.contains(',')) {
         cleanBase64 = cleanBase64.split(',').last;
       }
 
-      // Aseguramos el padding para evitar el error de "Invalid length"
       cleanBase64 = cleanBase64.replaceAll(RegExp(r'\s+'), '');
       while (cleanBase64.length % 4 != 0) {
         cleanBase64 += '=';

@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -5,6 +6,7 @@ import 'package:latlong2/latlong.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:ui' as ui;
 import '../model/report_model.dart';
+import '../repo/reporte_service.dart';
 
 class MapaViewModel extends ChangeNotifier {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;

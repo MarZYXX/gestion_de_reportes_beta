@@ -86,9 +86,18 @@ class ReporteService {
       final snapshot = await transaction.get(reportRef);
       if (!snapshot.exists) return;
 
-      final corroboradoPor = List<String>.from(snapshot.data()?['corroboradoPor'] ?? []);
+      // Obtenemos la lista actual de personas que han corroborado
+      List<String> corroboradoPor = List<String>.from(snapshot.data()?['corroboradoPor'] ?? []);
 
-      if (!corroboradoPor.contains(userId)) {
+      if (corroboradoPor.contains(userId)) {
+        // SI YA ESTÁ: Lo quitamos (Unlike)
+        corroboradoPor.remove(userId);
+        transaction.update(reportRef, {
+          'contadorCorroboraciones': FieldValue.increment(-1),
+          'corroboradoPor': corroboradoPor,
+        });
+      } else {
+        // SI NO ESTÁ: Lo agregamos (Like)
         corroboradoPor.add(userId);
         transaction.update(reportRef, {
           'contadorCorroboraciones': FieldValue.increment(1),
