@@ -13,6 +13,8 @@ import '../auth/auth_ui/login_screen.dart';
 import 'package:flutter_map_marker_cluster/flutter_map_marker_cluster.dart';
 import 'dart:convert';
 
+import 'crear_reporte_screen.dart';
+
 class MapScreen extends StatefulWidget {
   const MapScreen({super.key});
 
@@ -590,6 +592,14 @@ class _MapScreenState extends State<MapScreen> {
                 right: 16,
                 child: FloatingActionButton(
                   onPressed: () async {
+                    final result = await Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (context) => const CrearReporteScreen()),
+                    );
+                    if (result == true) {
+                      viewModel.cargarReportes();
+                    }
                   },
                   child: const Icon(Icons.add),
                 ),
@@ -659,7 +669,6 @@ class _MapScreenState extends State<MapScreen> {
                 Flexible(
                   child: ListView.builder(
                       shrinkWrap: true,
-                      // Usamos la lista ordenada
                       itemCount: reportesOrdenados.length,
                       itemBuilder: (context, index) {
                         final r = reportesOrdenados[index];
