@@ -1,11 +1,10 @@
 import 'dart:io';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:firebase_storage/firebase_storage.dart';
-import 'package:path/path.dart' as path;
 import '../repo/reporte_service.dart';
 import '../model/report_model.dart';
 
@@ -33,7 +32,6 @@ class _CrearReporteScreenState extends State<CrearReporteScreen> {
   final ImagePicker _imagePicker = ImagePicker();
   final ReporteService _reporteService = ReporteService();
   final FirebaseAuth _auth = FirebaseAuth.instance;
-  final FirebaseStorage _storage = FirebaseStorage.instance;
 
   @override
   void initState() {
@@ -134,10 +132,12 @@ class _CrearReporteScreenState extends State<CrearReporteScreen> {
     );
   }
 
+  // --- LÓGICA DE IMÁGENES COMPRIMIDAS PARA NO SATURAR FIRESTORE ---
   Future<void> _capturarImagen(ImageSource source) async {
     final XFile? imagen = await _imagePicker.pickImage(
       source: source,
-      imageQuality: 50,
+      imageQuality: 50, // Comprimimos
+      maxWidth: 800,    // Limitamos tamaño para que el Base64 no sea inmenso
     );
     if (imagen != null) {
       setState(() {
@@ -157,6 +157,27 @@ class _CrearReporteScreenState extends State<CrearReporteScreen> {
     }
   }
 
+  // --- CONSTRUCTOR DE IMÁGENES SEGURO (Maneja Rutas y Base64) ---
+  Widget _construirImagenSegura(String rutaOBase64) {
+    try {
+      if (rutaOBase64.startsWith('/data') || rutaOBase64.startsWith('file://')) {
+        return Image.file(File(rutaOBase64), fit: BoxFit.cover);
+      }
+      if (rutaOBase64.startsWith('http')) {
+        return Image.network(rutaOBase64, fit: BoxFit.cover);
+      }
+
+      String cleanBase64 = rutaOBase64;
+      if (cleanBase64.contains(',')) cleanBase64 = cleanBase64.split(',').last;
+      cleanBase64 = cleanBase64.replaceAll(RegExp(r'\s+'), '');
+      while (cleanBase64.length % 4 != 0) cleanBase64 += '=';
+
+      return Image.memory(base64Decode(cleanBase64), fit: BoxFit.cover);
+    } catch (e) {
+      return Container(color: Colors.grey[300], child: const Icon(Icons.broken_image, color: Colors.grey));
+    }
+  }
+
   void _verImagenPantallaCompleta(String rutaImagen) {
     showDialog(
       context: context,
@@ -171,23 +192,11 @@ class _CrearReporteScreenState extends State<CrearReporteScreen> {
                 panEnabled: true,
                 minScale: 0.5,
                 maxScale: 4.0,
-                child: rutaImagen.startsWith('http')
-                    ? Image.network(
-                        rutaImagen,
-                        fit: BoxFit.contain,
-                        width: double.infinity,
-                        height: double.infinity,
-                        loadingBuilder: (context, child, loadingProgress) {
-                          if (loadingProgress == null) return child;
-                          return const Center(child: CircularProgressIndicator(color: Colors.white));
-                        },
-                      )
-                    : Image.file(
-                        File(rutaImagen),
-                        fit: BoxFit.contain,
-                        width: double.infinity,
-                        height: double.infinity,
-                      ),
+                child: SizedBox(
+                  width: double.infinity,
+                  height: double.infinity,
+                  child: _construirImagenSegura(rutaImagen),
+                ),
               ),
               Positioned(
                 top: 40,
@@ -211,23 +220,22 @@ class _CrearReporteScreenState extends State<CrearReporteScreen> {
   }
 
   Future<List<String>> _subirImagenes(List<String> rutasLocales) async {
-    List<String> urlsSubidas = [];
+    List<String> imagenesBase64 = [];
     for (String ruta in rutasLocales) {
-      if (ruta.startsWith('http')) {
-        urlsSubidas.add(ruta);
-        continue;
-      }
-      File file = File(ruta);
-      String fileName = '${DateTime.now().millisecondsSinceEpoch}_${path.basename(ruta)}';
-      try {
-        TaskSnapshot snapshot = await _storage.ref('reportes/$fileName').putFile(file);
-        String downloadUrl = await snapshot.ref.getDownloadURL();
-        urlsSubidas.add(downloadUrl);
-      } catch (e) {
-        debugPrint('Error al subir imagen: $e');
+      if (ruta.startsWith('/data') || ruta.startsWith('file://')) {
+        try {
+          File file = File(ruta);
+          final bytes = await file.readAsBytes();
+          final base64String = base64Encode(bytes);
+          imagenesBase64.add(base64String);
+        } catch (e) {
+          debugPrint('Error al convertir imagen a Base64: $e');
+        }
+      } else {
+        imagenesBase64.add(ruta);
       }
     }
-    return urlsSubidas;
+    return imagenesBase64;
   }
 
   Future<void> _guardarReporte() async {
@@ -248,6 +256,7 @@ class _CrearReporteScreenState extends State<CrearReporteScreen> {
     try {
       final userId = _auth.currentUser?.uid;
 
+      // Transformamos las imágenes físicas en texto antes de armar el reporte
       List<String> urlsFinales = await _subirImagenes(_urlsImagenes);
 
       if (widget.reporteOriginal == null) {
@@ -307,279 +316,263 @@ class _CrearReporteScreenState extends State<CrearReporteScreen> {
       ),
       body: _cargando
           ? const Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  CircularProgressIndicator(),
-                  SizedBox(height: 16),
-                  Text('Subiendo reporte e imágenes...'),
-                ],
-              ),
-            )
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(height: 16),
+            Text('Procesando y subiendo reporte...'),
+          ],
+        ),
+      )
           : Form(
-              key: _formKey,
-              child: ListView(
-                padding: const EdgeInsets.all(16),
-                children: [
-                  if (_error != null)
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.red.shade100,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        _error!,
-                        style: const TextStyle(color: Colors.red),
-                      ),
-                    ),
-                  const SizedBox(height: 16),
+        key: _formKey,
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            if (_error != null)
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.red.shade100,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  _error!,
+                  style: const TextStyle(color: Colors.red),
+                ),
+              ),
+            const SizedBox(height: 16),
 
-                  TextFormField(
-                    controller: _tituloController,
-                    decoration: const InputDecoration(
-                      labelText: 'Título del reporte',
-                      hintText: 'Ej: Bache en la calle',
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.title),
-                    ),
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Por favor ingrese un título';
-                      }
-                      if (value.length < 5) {
-                        return 'El título debe tener al menos 5 caracteres';
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 16),
+            TextFormField(
+              controller: _tituloController,
+              decoration: const InputDecoration(
+                labelText: 'Título del reporte',
+                hintText: 'Ej: Bache en la calle',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.title),
+              ),
+              validator: (value) {
+                if (value == null || value.isEmpty) {
+                  return 'Por favor ingrese un título';
+                }
+                if (value.length < 5) {
+                  return 'El título debe tener al menos 5 caracteres';
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: 16),
 
-                  TextFormField(
-                    controller: _descripcionController,
-                    decoration: const InputDecoration(
-                      labelText: 'Descripción',
-                      hintText: 'Describa el incidente en detalle...',
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.description),
-                    ),
-                    maxLines: 5,
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Por favor ingrese una descripción';
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 16),
+            TextFormField(
+              controller: _descripcionController,
+              decoration: const InputDecoration(
+                labelText: 'Descripción',
+                hintText: 'Describa el incidente en detalle...',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.description),
+              ),
+              maxLines: 5,
+              validator: (value) {
+                if (value == null || value.isEmpty) {
+                  return 'Por favor ingrese una descripción';
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: 16),
 
-                  DropdownButtonFormField<String>(
-                    value: _severidad,
-                    decoration: const InputDecoration(
-                      labelText: 'Nivel de severidad',
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.warning),
-                    ),
-                    items: const [
-                      DropdownMenuItem(
-                        value: 'baja',
-                        child: Row(
-                          children: [
-                            Icon(Icons.circle, color: Colors.green, size: 16),
-                            SizedBox(width: 8),
-                            Text('Baja'),
-                          ],
-                        ),
-                      ),
-                      DropdownMenuItem(
-                        value: 'media',
-                        child: Row(
-                          children: [
-                            Icon(Icons.circle, color: Colors.orange, size: 16),
-                            SizedBox(width: 8),
-                            Text('Media'),
-                          ],
-                        ),
-                      ),
-                      DropdownMenuItem(
-                        value: 'alta',
-                        child: Row(
-                          children: [
-                            Icon(Icons.circle, color: Colors.red, size: 16),
-                            SizedBox(width: 8),
-                            Text('Alta'),
-                          ],
-                        ),
-                      ),
-                    ],
-                    onChanged: (value) {
-                      if (value != null) setState(() => _severidad = value);
-                    },
-                  ),
-                  const SizedBox(height: 16),
-
-                  Row(
+            DropdownButtonFormField<String>(
+              value: _severidad,
+              decoration: const InputDecoration(
+                labelText: 'Nivel de severidad',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.warning),
+              ),
+              items: const [
+                DropdownMenuItem(
+                  value: 'baja',
+                  child: Row(
                     children: [
-                      Expanded(
-                        child: ListTile(
-                          leading: const Icon(Icons.calendar_today),
-                          title: const Text('Fecha'),
-                          subtitle: Text(
-                            '${_fechaIncidente.day}/${_fechaIncidente.month}/${_fechaIncidente.year}',
-                          ),
-                          onTap: _seleccionarFecha,
-                        ),
-                      ),
-                      Expanded(
-                        child: ListTile(
-                          leading: const Icon(Icons.access_time),
-                          title: const Text('Hora'),
-                          subtitle: Text(_horaIncidente.format(context)),
-                          onTap: _seleccionarHora,
-                        ),
-                      ),
+                      Icon(Icons.circle, color: Colors.green, size: 16),
+                      SizedBox(width: 8),
+                      Text('Baja'),
                     ],
                   ),
-                  const SizedBox(height: 8),
-
-                  ElevatedButton.icon(
-                    onPressed: _mostrarOpcionesImagen,
-                    icon: const Icon(Icons.add_photo_alternate),
-                    label: Text(
-                      _urlsImagenes.isEmpty
-                          ? 'Agregar imágenes'
-                          : '${_urlsImagenes.length} imagen(es) seleccionada(s)',
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.grey.shade200,
-                      foregroundColor: Colors.black,
-                    ),
+                ),
+                DropdownMenuItem(
+                  value: 'media',
+                  child: Row(
+                    children: [
+                      Icon(Icons.circle, color: Colors.orange, size: 16),
+                      SizedBox(width: 8),
+                      Text('Media'),
+                    ],
                   ),
+                ),
+                DropdownMenuItem(
+                  value: 'alta',
+                  child: Row(
+                    children: [
+                      Icon(Icons.circle, color: Colors.red, size: 16),
+                      SizedBox(width: 8),
+                      Text('Alta'),
+                    ],
+                  ),
+                ),
+              ],
+              onChanged: (value) {
+                if (value != null) setState(() => _severidad = value);
+              },
+            ),
+            const SizedBox(height: 16),
 
-                  if (_urlsImagenes.isNotEmpty) ...[
-                    const SizedBox(height: 12),
-                    SizedBox(
-                      height: 80,
-                      child: ListView.builder(
-                        scrollDirection: Axis.horizontal,
-                        itemCount: _urlsImagenes.length,
-                        itemBuilder: (context, index) {
-                          final imgPath = _urlsImagenes[index];
-                          return Padding(
-                            padding: const EdgeInsets.only(right: 8),
-                            child: Stack(
-                              children: [
-                                GestureDetector(
-                                  onTap: () => _verImagenPantallaCompleta(imgPath),
-                                  child: ClipRRect(
-                                    borderRadius: BorderRadius.circular(8),
-                                    child: imgPath.startsWith('http')
-                                        ? Image.network(
-                                            imgPath,
-                                            width: 80,
-                                            height: 80,
-                                            fit: BoxFit.cover,
-                                            loadingBuilder: (context, child, loadingProgress) {
-                                              if (loadingProgress == null) return child;
-                                              return const SizedBox(
-                                                width: 80,
-                                                height: 80,
-                                                child: Center(child: CircularProgressIndicator()),
-                                              );
-                                            },
-                                          )
-                                        : Image.file(
-                                            File(imgPath),
-                                            width: 80,
-                                            height: 80,
-                                            fit: BoxFit.cover,
-                                          ),
-                                  ),
-                                ),
-                                Positioned(
-                                  top: 0,
-                                  right: 0,
-                                  child: GestureDetector(
-                                    onTap: () {
-                                      setState(() {
-                                        _urlsImagenes.removeAt(index);
-                                      });
-                                    },
-                                    child: Container(
-                                      decoration: BoxDecoration(
-                                        color: Colors.black54,
-                                        borderRadius: BorderRadius.circular(10),
-                                      ),
-                                      child: const Icon(
-                                        Icons.close,
-                                        size: 16,
-                                        color: Colors.white,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ],
+            Row(
+              children: [
+                Expanded(
+                  child: ListTile(
+                    leading: const Icon(Icons.calendar_today),
+                    title: const Text('Fecha'),
+                    subtitle: Text(
+                      '${_fechaIncidente.day}/${_fechaIncidente.month}/${_fechaIncidente.year}',
+                    ),
+                    onTap: _seleccionarFecha,
+                  ),
+                ),
+                Expanded(
+                  child: ListTile(
+                    leading: const Icon(Icons.access_time),
+                    title: const Text('Hora'),
+                    subtitle: Text(_horaIncidente.format(context)),
+                    onTap: _seleccionarHora,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+
+            ElevatedButton.icon(
+              onPressed: _mostrarOpcionesImagen,
+              icon: const Icon(Icons.add_photo_alternate),
+              label: Text(
+                _urlsImagenes.isEmpty
+                    ? 'Agregar imágenes'
+                    : '${_urlsImagenes.length} imagen(es) seleccionada(s)',
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.grey.shade200,
+                foregroundColor: Colors.black,
+              ),
+            ),
+
+            if (_urlsImagenes.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              SizedBox(
+                height: 80,
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: _urlsImagenes.length,
+                  itemBuilder: (context, index) {
+                    final imgPath = _urlsImagenes[index];
+                    return Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: Stack(
+                        children: [
+                          GestureDetector(
+                            onTap: () => _verImagenPantallaCompleta(imgPath),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: SizedBox(
+                                width: 80,
+                                height: 80,
+                                child: _construirImagenSegura(imgPath),
+                              ),
                             ),
-                          );
-                        },
+                          ),
+                          Positioned(
+                            top: 0,
+                            right: 0,
+                            child: GestureDetector(
+                              onTap: () {
+                                setState(() {
+                                  _urlsImagenes.removeAt(index);
+                                });
+                              },
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: Colors.black54,
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: const Icon(
+                                  Icons.close,
+                                  size: 16,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+
+            const SizedBox(height: 24),
+
+            if (_ubicacion == null)
+              const Center(
+                child: Column(
+                  children: [
+                    CircularProgressIndicator(),
+                    SizedBox(height: 8),
+                    Text('Obteniendo ubicación actual...'),
+                  ],
+                ),
+              )
+            else
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.green.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.green.shade200),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.location_on, color: Colors.green),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Ubicación actual obtenida correctamente',
+                        style: TextStyle(color: Colors.green),
                       ),
                     ),
                   ],
+                ),
+              ),
 
-                  const SizedBox(height: 24),
+            const SizedBox(height: 24),
 
-                  if (_ubicacion == null)
-                    const Center(
-                      child: Column(
-                        children: [
-                          CircularProgressIndicator(),
-                          SizedBox(height: 8),
-                          Text('Obteniendo ubicación actual...'),
-                        ],
-                      ),
-                    )
-                  else
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.green.shade50,
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.green.shade200),
-                      ),
-                      child: const Row(
-                        children: [
-                          Icon(Icons.location_on, color: Colors.green),
-                          SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              'Ubicación actual obtenida correctamente',
-                              style: TextStyle(color: Colors.green),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-
-                  const SizedBox(height: 24),
-
-                  ElevatedButton(
-                    onPressed: _guardarReporte,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blue,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                    child: Text(
-                      widget.reporteOriginal == null ? 'CREAR REPORTE' : 'ACTUALIZAR REPORTE',
-                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                ],
+            ElevatedButton(
+              onPressed: _guardarReporte,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              child: Text(
+                widget.reporteOriginal == null ? 'CREAR REPORTE' : 'ACTUALIZAR REPORTE',
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               ),
             ),
+          ],
+        ),
+      ),
     );
   }
 
