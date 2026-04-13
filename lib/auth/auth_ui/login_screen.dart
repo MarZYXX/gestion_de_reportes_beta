@@ -56,9 +56,23 @@ class _LoginScreenState extends State<LoginScreen> {
                 SafeArea(
                   child: Column(
                     children: [
-                      const SizedBox(height: 60),
-                      const Text("Welcome", style: TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold)),
                       const SizedBox(height: 40),
+
+                      Image.asset(
+                        'asset/images/transparent.png',
+                        height: 100,
+                      ),
+
+                      const SizedBox(height: 20),
+
+                      const Text(
+                        "Bienvenido",
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 28,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),                      const SizedBox(height: 40),
                       Expanded(
                         child: Container(
                           padding: const EdgeInsets.only(top: 24, left: 24, right: 24),
@@ -124,11 +138,26 @@ class _LoginScreenState extends State<LoginScreen> {
                                     ),
                                   ),
                                   const SizedBox(height: 15),
-                                  OutlinedButton(
-                                    onPressed: () {
-                                      Navigator.push(context, MaterialPageRoute(builder: (context) => const RegisterPage()));
-                                    },
-                                    child: const Text("Registrarse"),
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      const Text("¿No tienes cuenta? "),
+                                      GestureDetector(
+                                        onTap: () {
+                                          Navigator.push(
+                                            context,
+                                            MaterialPageRoute(builder: (context) => const RegisterPage()),
+                                          );
+                                        },
+                                        child: const Text(
+                                          "Regístrate",
+                                          style: TextStyle(
+                                            color: Colors.blue,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                   const SizedBox(height: 40),
                                 ],
