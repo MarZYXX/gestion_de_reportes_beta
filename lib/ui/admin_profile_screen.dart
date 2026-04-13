@@ -137,80 +137,105 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
     final TextEditingController passwordController = TextEditingController();
     final TextEditingController confirmPasswordController = TextEditingController();
 
+    bool ocultarNueva = true;
+    bool ocultarConfirmacion = true;
+
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Cambiar Contraseña'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text('Ingresa tu nueva contraseña. Debe tener al menos 6 caracteres.', style: TextStyle(fontSize: 12, color: Colors.grey)),
-            const SizedBox(height: 16),
-            TextField(
-              controller: passwordController,
-              obscureText: true,
-              decoration: const InputDecoration(
-                labelText: 'Nueva Contraseña',
-                border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.lock_outline),
-              ),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: confirmPasswordController,
-              obscureText: true,
-              decoration: const InputDecoration(
-                labelText: 'Confirmar Contraseña',
-                border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.lock),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.blue.shade900),
-            onPressed: () async {
-              final newPass = passwordController.text;
-              final confirmPass = confirmPasswordController.text;
+      builder: (context) {
+        return StatefulBuilder(
+            builder: (context, setStateDialog) {
+              return AlertDialog(
+                title: const Text('Cambiar Contraseña'),
+                content: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text('Ingresa tu nueva contraseña. Debe tener al menos 6 caracteres.', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: passwordController,
+                      obscureText: ocultarNueva,
+                      decoration: InputDecoration(
+                        labelText: 'Nueva Contraseña',
+                        border: const OutlineInputBorder(),
+                        prefixIcon: const Icon(Icons.lock_outline),
+                        suffixIcon: IconButton(
+                          icon: Icon(ocultarNueva ? Icons.visibility_off : Icons.visibility, color: Colors.grey),
+                          onPressed: () {
+                            setStateDialog(() {
+                              ocultarNueva = !ocultarNueva;
+                            });
+                          },
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: confirmPasswordController,
+                      obscureText: ocultarConfirmacion,
+                      decoration: InputDecoration(
+                        labelText: 'Confirmar Contraseña',
+                        border: const OutlineInputBorder(),
+                        prefixIcon: const Icon(Icons.lock),
+                        suffixIcon: IconButton(
+                          icon: Icon(ocultarConfirmacion ? Icons.visibility_off : Icons.visibility, color: Colors.grey),
+                          onPressed: () {
+                            setStateDialog(() {
+                              ocultarConfirmacion = !ocultarConfirmacion;
+                            });
+                          },
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                actions: [
+                  TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(backgroundColor: Colors.blue),
+                    onPressed: () async {
+                      final newPass = passwordController.text;
+                      final confirmPass = confirmPasswordController.text;
 
-              if (newPass != confirmPass) {
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Las contraseñas no coinciden'), backgroundColor: Colors.red));
-                return;
-              }
-              if (newPass.length < 6) {
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('La contraseña debe tener mínimo 6 caracteres'), backgroundColor: Colors.red));
-                return;
-              }
+                      if (newPass != confirmPass) {
+                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Las contraseñas no coinciden'), backgroundColor: Colors.red));
+                        return;
+                      }
+                      if (newPass.length < 6) {
+                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('La contraseña debe tener mínimo 6 caracteres'), backgroundColor: Colors.red));
+                        return;
+                      }
 
-              try {
-                if (currentUser != null) {
-                  await currentUser!.updatePassword(newPass);
-                  if (context.mounted) {
-                    Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Contraseña actualizada exitosamente', style: TextStyle(color: Colors.white)), backgroundColor: Colors.green));
-                  }
-                }
-              } on FirebaseAuthException catch (e) {
-                if (e.code == 'requires-recent-login') {
-                  if (context.mounted) {
-                    Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                      content: Text('Por seguridad, debes cerrar sesión y volver a entrar para cambiar tu contraseña.'),
-                      backgroundColor: Colors.orange,
-                      duration: Duration(seconds: 4),
-                    ));
-                  }
-                } else {
-                  if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: ${e.message}'), backgroundColor: Colors.red));
-                }
-              }
-            },
-            child: const Text('Actualizar', style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
+                      try {
+                        if (FirebaseAuth.instance.currentUser != null) {
+                          await FirebaseAuth.instance.currentUser!.updatePassword(newPass);
+                          if (context.mounted) {
+                            Navigator.pop(context);
+                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Contraseña actualizada exitosamente', style: TextStyle(color: Colors.white)), backgroundColor: Colors.green));
+                          }
+                        }
+                      } on FirebaseAuthException catch (e) {
+                        if (e.code == 'requires-recent-login') {
+                          if (context.mounted) {
+                            Navigator.pop(context);
+                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                              content: Text('Por seguridad, debes cerrar sesión y volver a entrar para cambiar tu contraseña.', style: TextStyle(color: Colors.white)),
+                              backgroundColor: Colors.orange,
+                              duration: Duration(seconds: 4),
+                            ));
+                          }
+                        } else {
+                          if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: ${e.message}'), backgroundColor: Colors.red));
+                        }
+                      }
+                    },
+                    child: const Text('Actualizar', style: TextStyle(color: Colors.white)),
+                  ),
+                ],
+              );
+            }
+        );
+      },
     );
   }
 
