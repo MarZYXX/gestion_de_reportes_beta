@@ -202,7 +202,50 @@ class _AdminMapScreenState extends State<AdminMapScreen> {
                         itemCount: reporte.urlsImagenes.length,
                         itemBuilder: (context, index) => Padding(
                           padding: const EdgeInsets.only(right: 8),
-                          child: ClipRRect(borderRadius: BorderRadius.circular(8), child: _construirImagenSegura(reporte.urlsImagenes[index])),
+                          child: GestureDetector(
+                            onTap: () {
+                              showDialog(
+                                context: context,
+                                builder: (BuildContext context) {
+                                  return Dialog(
+                                    backgroundColor: Colors.black87,
+                                    insetPadding: EdgeInsets.zero,
+                                    child: Stack(
+                                      alignment: Alignment.center,
+                                      children: [
+                                        InteractiveViewer(
+                                          panEnabled: true,
+                                          minScale: 0.5,
+                                          maxScale: 4.0,
+                                          child: Center(
+                                            child: _construirImagenSegura(reporte.urlsImagenes[index]),
+                                          ),
+                                        ),
+                                        Positioned(
+                                          top: 40,
+                                          right: 20,
+                                          child: Container(
+                                            decoration: const BoxDecoration(
+                                              color: Colors.black54,
+                                              shape: BoxShape.circle,
+                                            ),
+                                            child: IconButton(
+                                              icon: const Icon(Icons.close, color: Colors.white, size: 28),
+                                              onPressed: () => Navigator.pop(context),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                },
+                              );
+                            },
+                            child: ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: _construirImagenSegura(reporte.urlsImagenes[index])
+                            ),
+                          ),
                         ),
                       ),
                     ),

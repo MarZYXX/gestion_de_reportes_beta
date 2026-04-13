@@ -157,7 +157,6 @@ class _CrearReporteScreenState extends State<CrearReporteScreen> {
     }
   }
 
-  // --- CONSTRUCTOR DE IMÁGENES SEGURO (Maneja Rutas y Base64) ---
   Widget _construirImagenSegura(String rutaOBase64) {
     try {
       if (rutaOBase64.startsWith('/data') || rutaOBase64.startsWith('file://')) {
