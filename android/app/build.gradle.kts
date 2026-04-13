@@ -23,6 +23,11 @@ android {
     }
 
     defaultConfig {
+        applicationVariants.all { variant ->
+            variant.outputs.all {
+                outputFileName = "MyCity.apk"
+            }
+        }
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         applicationId = "com.example.gestion_de_reportes"
         // You can update the following values to match your application needs.
