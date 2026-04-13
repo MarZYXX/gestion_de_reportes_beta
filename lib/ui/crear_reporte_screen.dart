@@ -1,11 +1,10 @@
 import 'dart:io';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:firebase_storage/firebase_storage.dart';
-import 'package:path/path.dart' as path;
 import '../repo/reporte_service.dart';
 import '../model/report_model.dart';
 
@@ -33,7 +32,6 @@ class _CrearReporteScreenState extends State<CrearReporteScreen> {
   final ImagePicker _imagePicker = ImagePicker();
   final ReporteService _reporteService = ReporteService();
   final FirebaseAuth _auth = FirebaseAuth.instance;
-  final FirebaseStorage _storage = FirebaseStorage.instance;
 
   @override
   void initState() {
@@ -134,10 +132,12 @@ class _CrearReporteScreenState extends State<CrearReporteScreen> {
     );
   }
 
+  // --- LÓGICA DE IMÁGENES COMPRIMIDAS PARA NO SATURAR FIRESTORE ---
   Future<void> _capturarImagen(ImageSource source) async {
     final XFile? imagen = await _imagePicker.pickImage(
       source: source,
-      imageQuality: 50,
+      imageQuality: 50, // Comprimimos
+      maxWidth: 800,    // Limitamos tamaño para que el Base64 no sea inmenso
     );
     if (imagen != null) {
       setState(() {
@@ -157,6 +157,27 @@ class _CrearReporteScreenState extends State<CrearReporteScreen> {
     }
   }
 
+  // --- CONSTRUCTOR DE IMÁGENES SEGURO (Maneja Rutas y Base64) ---
+  Widget _construirImagenSegura(String rutaOBase64) {
+    try {
+      if (rutaOBase64.startsWith('/data') || rutaOBase64.startsWith('file://')) {
+        return Image.file(File(rutaOBase64), fit: BoxFit.cover);
+      }
+      if (rutaOBase64.startsWith('http')) {
+        return Image.network(rutaOBase64, fit: BoxFit.cover);
+      }
+
+      String cleanBase64 = rutaOBase64;
+      if (cleanBase64.contains(',')) cleanBase64 = cleanBase64.split(',').last;
+      cleanBase64 = cleanBase64.replaceAll(RegExp(r'\s+'), '');
+      while (cleanBase64.length % 4 != 0) cleanBase64 += '=';
+
+      return Image.memory(base64Decode(cleanBase64), fit: BoxFit.cover);
+    } catch (e) {
+      return Container(color: Colors.grey[300], child: const Icon(Icons.broken_image, color: Colors.grey));
+    }
+  }
+
   void _verImagenPantallaCompleta(String rutaImagen) {
     showDialog(
       context: context,
@@ -171,22 +192,10 @@ class _CrearReporteScreenState extends State<CrearReporteScreen> {
                 panEnabled: true,
                 minScale: 0.5,
                 maxScale: 4.0,
-                child: rutaImagen.startsWith('http')
-                    ? Image.network(
-                  rutaImagen,
-                  fit: BoxFit.contain,
+                child: SizedBox(
                   width: double.infinity,
                   height: double.infinity,
-                  loadingBuilder: (context, child, loadingProgress) {
-                    if (loadingProgress == null) return child;
-                    return const Center(child: CircularProgressIndicator(color: Colors.white));
-                  },
-                )
-                    : Image.file(
-                  File(rutaImagen),
-                  fit: BoxFit.contain,
-                  width: double.infinity,
-                  height: double.infinity,
+                  child: _construirImagenSegura(rutaImagen),
                 ),
               ),
               Positioned(
@@ -211,23 +220,22 @@ class _CrearReporteScreenState extends State<CrearReporteScreen> {
   }
 
   Future<List<String>> _subirImagenes(List<String> rutasLocales) async {
-    List<String> urlsSubidas = [];
+    List<String> imagenesBase64 = [];
     for (String ruta in rutasLocales) {
-      if (ruta.startsWith('http')) {
-        urlsSubidas.add(ruta);
-        continue;
-      }
-      File file = File(ruta);
-      String fileName = '${DateTime.now().millisecondsSinceEpoch}_${path.basename(ruta)}';
-      try {
-        TaskSnapshot snapshot = await _storage.ref('reportes/$fileName').putFile(file);
-        String downloadUrl = await snapshot.ref.getDownloadURL();
-        urlsSubidas.add(downloadUrl);
-      } catch (e) {
-        debugPrint('Error al subir imagen: $e');
+      if (ruta.startsWith('/data') || ruta.startsWith('file://')) {
+        try {
+          File file = File(ruta);
+          final bytes = await file.readAsBytes();
+          final base64String = base64Encode(bytes);
+          imagenesBase64.add(base64String);
+        } catch (e) {
+          debugPrint('Error al convertir imagen a Base64: $e');
+        }
+      } else {
+        imagenesBase64.add(ruta);
       }
     }
-    return urlsSubidas;
+    return imagenesBase64;
   }
 
   Future<void> _guardarReporte() async {
@@ -248,6 +256,7 @@ class _CrearReporteScreenState extends State<CrearReporteScreen> {
     try {
       final userId = _auth.currentUser?.uid;
 
+      // Transformamos las imágenes físicas en texto antes de armar el reporte
       List<String> urlsFinales = await _subirImagenes(_urlsImagenes);
 
       if (widget.reporteOriginal == null) {
@@ -312,7 +321,7 @@ class _CrearReporteScreenState extends State<CrearReporteScreen> {
           children: [
             CircularProgressIndicator(),
             SizedBox(height: 16),
-            Text('Subiendo reporte e imágenes...'),
+            Text('Procesando y subiendo reporte...'),
           ],
         ),
       )
@@ -473,26 +482,10 @@ class _CrearReporteScreenState extends State<CrearReporteScreen> {
                             onTap: () => _verImagenPantallaCompleta(imgPath),
                             child: ClipRRect(
                               borderRadius: BorderRadius.circular(8),
-                              child: imgPath.startsWith('http')
-                                  ? Image.network(
-                                imgPath,
+                              child: SizedBox(
                                 width: 80,
                                 height: 80,
-                                fit: BoxFit.cover,
-                                loadingBuilder: (context, child, loadingProgress) {
-                                  if (loadingProgress == null) return child;
-                                  return const SizedBox(
-                                    width: 80,
-                                    height: 80,
-                                    child: Center(child: CircularProgressIndicator()),
-                                  );
-                                },
-                              )
-                                  : Image.file(
-                                File(imgPath),
-                                width: 80,
-                                height: 80,
-                                fit: BoxFit.cover,
+                                child: _construirImagenSegura(imgPath),
                               ),
                             ),
                           ),
