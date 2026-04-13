@@ -237,7 +237,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
               try {
                 await _auth.currentUser!.verifyBeforeUpdateEmail(nuevoCorreo);
-                // Actualiza en Firestore
                 await _guardarCampo('correo', nuevoCorreo);
 
                 setState(() => _correo = nuevoCorreo);
