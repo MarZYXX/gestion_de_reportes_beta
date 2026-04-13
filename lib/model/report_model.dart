@@ -6,7 +6,7 @@ class ReporteModel {
   final String userId;
   final String titulo;
   final String descripcion;
-  final String severidad; //  estado para el reporte, puede ser 'baja', 'media', 'alta'
+  final String severidad;
   final DateTime fechaIncidente;
   final TimeOfDay horaIncidente;
   final GeoPoint ubicacion;
@@ -17,6 +17,7 @@ class ReporteModel {
   final DateTime fechaCreacion;
   final DateTime? fechaCompletado;
   final bool severidadModificadaPorAdmin;
+  final bool esFalso;
 
   ReporteModel({
     required this.id,
@@ -34,11 +35,11 @@ class ReporteModel {
     required this.fechaCreacion,
     this.fechaCompletado,
     required this.severidadModificadaPorAdmin,
+    this.esFalso = false,
   });
 
   factory ReporteModel.fromFirestore(DocumentSnapshot doc) {
     Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
-
     return ReporteModel(
       id: doc.id,
       userId: data['userId'] ?? '',
@@ -60,6 +61,7 @@ class ReporteModel {
           ? (data['fechaCompletado'] as Timestamp).toDate()
           : null,
       severidadModificadaPorAdmin: data['severidadModificadaPorAdmin'] ?? false,
+      esFalso: data['esFalso'] ?? false,
     );
   }
 

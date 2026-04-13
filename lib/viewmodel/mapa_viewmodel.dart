@@ -1,8 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:flutter_map/flutter_map.dart';
-import 'package:latlong2/latlong.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:ui' as ui;
 import '../model/report_model.dart';
@@ -45,7 +43,13 @@ class MapaViewModel extends ChangeNotifier {
       final List<ReporteModel> nuevosReportes = [];
 
       for (var doc in snapshot.docs) {
-        nuevosReportes.add(ReporteModel.fromFirestore(doc));
+        final reporte = ReporteModel.fromFirestore(doc);
+
+        if (reporte.estaCompleto || reporte.esFalso) {
+          continue;
+        }
+
+        nuevosReportes.add(reporte);
       }
 
       reportes = nuevosReportes;
@@ -76,9 +80,7 @@ class MapaViewModel extends ChangeNotifier {
     if (userId == null) return;
 
     try {
-      // Necesitarás instanciar tu ReporteService aquí si no lo tienes
       await ReporteService().corroborarReporte(reportId, userId);
-      // Como el mapa escucha Firebase en tiempo real, el número subirá automáticamente
     } catch (e) {
       error = "Error al corroborar: $e";
       notifyListeners();

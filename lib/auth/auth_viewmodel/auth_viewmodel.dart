@@ -2,9 +2,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import '../auth_model/auth_repository.dart';
 import '../auth_model/user_model.dart';
-import 'package:cloud_firestore/cloud_firestore.dart'; // Añade esto para obtener el documento
+import 'package:cloud_firestore/cloud_firestore.dart';
 
-// viewmodel para autentificar
 class AuthViewModel extends ChangeNotifier {
   final AuthRepository _repository = AuthRepository();
 

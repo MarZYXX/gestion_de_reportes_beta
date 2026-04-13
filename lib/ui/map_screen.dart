@@ -10,7 +10,6 @@ import '../repo/reporte_service.dart';
 import '../viewmodel/mapa_viewmodel.dart';
 import '../model/report_model.dart';
 import '../auth/auth_ui/login_screen.dart';
-import 'crear_reporte_screen.dart';
 import 'package:flutter_map_marker_cluster/flutter_map_marker_cluster.dart';
 import 'dart:convert';
 
@@ -380,7 +379,6 @@ class _MapScreenState extends State<MapScreen> {
     );
   }
 
-  // --- DIÁLOGO PARA EDITAR COMENTARIO ---
   void _editarComentario(String reportId, ComentarioModel comentario, ReporteService servicio) {
     final TextEditingController editController = TextEditingController(text: comentario.texto);
 
@@ -417,7 +415,6 @@ class _MapScreenState extends State<MapScreen> {
     );
   }
 
-  // --- DIÁLOGO PARA ELIMINAR COMENTARIO ---
   void _eliminarComentario(String reportId, String comentarioId, ReporteService servicio) {
     showDialog(
       context: context,
@@ -566,18 +563,33 @@ class _MapScreenState extends State<MapScreen> {
                 ],
               ),
               Positioned(
+                bottom: 20,
+                left: 10,
+                child: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.9),
+                    borderRadius: BorderRadius.circular(8),
+                    boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 4)],
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Prioridad', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                      const SizedBox(height: 4),
+                      _buildLegendItem(Colors.red, 'Alta'),
+                      _buildLegendItem(Colors.orange, 'Media'),
+                      _buildLegendItem(Colors.green, 'Baja'),
+                    ],
+                  ),
+                ),
+              ),
+
+              Positioned(
                 bottom: 16,
                 right: 16,
                 child: FloatingActionButton(
                   onPressed: () async {
-                    final result = await Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                          builder: (context) => const CrearReporteScreen()),
-                    );
-                    if (result == true) {
-                      viewModel.cargarReportes();
-                    }
                   },
                   child: const Icon(Icons.add),
                 ),
@@ -615,7 +627,7 @@ class _MapScreenState extends State<MapScreen> {
       int getValor(String severidad) {
         if (severidad == 'alta') return 1;
         if (severidad == 'media') return 2;
-        return 3; // baja
+        return 3;
       }
       return getValor(a.severidad).compareTo(getValor(b.severidad));
     });
@@ -663,9 +675,8 @@ class _MapScreenState extends State<MapScreen> {
                             subtitle: Text(r.descripcion, maxLines: 2, overflow: TextOverflow.ellipsis),
                             trailing: Icon(Icons.chevron_right, color: r.getColorSeveridad()),
                             onTap: () {
-                              // 2. CERRAR LA LISTA Y ABRIR LOS DETALLES DEL REPORTE
-                              Navigator.pop(context); // Cierra la ventanita de la lista
-                              _mostrarDetallesReporte(r); // Abre tu vista original de detalles
+                              Navigator.pop(context);
+                              _mostrarDetallesReporte(r);
                             },
                           ),
                         );
@@ -768,6 +779,19 @@ class _MapScreenState extends State<MapScreen> {
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
           return FadeTransition(opacity: animation, child: child);
         },
+      ),
+    );
+  }
+
+  Widget _buildLegendItem(Color color, String label) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        children: [
+          Container(width: 12, height: 12, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+          const SizedBox(width: 8),
+          Text(label, style: const TextStyle(fontSize: 12)),
+        ],
       ),
     );
   }

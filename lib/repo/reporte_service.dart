@@ -1,5 +1,4 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/material.dart';
 import '../model/comentario_model.dart';
 import '../model/report_model.dart';
 
@@ -87,18 +86,15 @@ class ReporteService {
       final snapshot = await transaction.get(reportRef);
       if (!snapshot.exists) return;
 
-      // Obtenemos la lista actual de personas que han corroborado
       List<String> corroboradoPor = List<String>.from(snapshot.data()?['corroboradoPor'] ?? []);
 
       if (corroboradoPor.contains(userId)) {
-        // SI YA ESTÁ: Lo quitamos (Unlike)
         corroboradoPor.remove(userId);
         transaction.update(reportRef, {
           'contadorCorroboraciones': FieldValue.increment(-1),
           'corroboradoPor': corroboradoPor,
         });
       } else {
-        // SI NO ESTÁ: Lo agregamos (Like)
         corroboradoPor.add(userId);
         transaction.update(reportRef, {
           'contadorCorroboraciones': FieldValue.increment(1),
@@ -109,13 +105,16 @@ class ReporteService {
   }
 
   Future<void> actualizarSeveridad(String reportId, String nuevaSeveridad) async {
-    await _firestore.collection('reportes').doc(reportId).update({
-      'severidad': nuevaSeveridad,
-      'severidadModificadaPorAdmin': true,
-    });
+    try {
+      await _firestore.collection('reportes').doc(reportId).update({
+        'severidad': nuevaSeveridad,
+        'severidadModificadaPorAdmin': true,
+      });
+    } catch (e) {
+      throw Exception('Error al actualizar la severidad: $e');
+    }
   }
 
-  // Eliminar reporte
   Future<void> eliminarReporte(String reportId) async {
     try {
       await _firestore.collection('reportes').doc(reportId).delete();
@@ -124,7 +123,6 @@ class ReporteService {
     }
   }
 
-  // Actualizar reporte completo (para cuando hagas la vista de edición)
   Future<void> actualizarReporte(String reportId, Map<String, dynamic> dataActualizada) async {
     try {
       await _firestore.collection('reportes').doc(reportId).update(dataActualizada);
@@ -133,7 +131,6 @@ class ReporteService {
     }
   }
 
-  // Mark report as completed
   Future<void> marcarComoCompletado(String reportId) async {
     await _firestore.collection('reportes').doc(reportId).update({
       'estaCompleto': true,
@@ -141,18 +138,12 @@ class ReporteService {
     });
   }
 
-  // Importa el nuevo modelo en la parte superior del archivo:
-  // import '../model/comentario_model.dart';
-
-  // --- MÉTODOS PARA COMENTARIOS ---
-
-  // 1. Agregar un comentario nuevo
   Future<void> agregarComentario(String reportId, String userId, String texto) async {
     try {
       await _firestore
           .collection('reportes')
           .doc(reportId)
-          .collection('comentarios') // Creamos/Accedemos a la subcolección
+          .collection('comentarios')
           .add({
         'userId': userId,
         'texto': texto,
@@ -163,7 +154,6 @@ class ReporteService {
     }
   }
 
-  // 2. Escuchar los comentarios en tiempo real (ordenados del más reciente al más antiguo)
   Stream<List<ComentarioModel>> obtenerComentarios(String reportId) {
     return _firestore
         .collection('reportes')
@@ -178,7 +168,6 @@ class ReporteService {
     });
   }
 
-  // 3. Actualizar un comentario
   Future<void> actualizarComentario(String reportId, String comentarioId, String nuevoTexto) async {
     try {
       await _firestore
@@ -194,7 +183,6 @@ class ReporteService {
     }
   }
 
-  // 4. Eliminar un comentario
   Future<void> eliminarComentario(String reportId, String comentarioId) async {
     try {
       await _firestore
@@ -205,6 +193,17 @@ class ReporteService {
           .delete();
     } catch (e) {
       throw Exception('Error al eliminar comentario: $e');
+    }
+  }
+
+  Future<void> marcarComoFalso(String reportId) async {
+    try {
+      await _firestore.collection('reportes').doc(reportId).update({
+        'esFalso': true,
+        'estaCompleto': true,
+      });
+    } catch (e) {
+      throw Exception('Error al marcar como falso: $e');
     }
   }
 }

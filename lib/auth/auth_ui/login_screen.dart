@@ -6,7 +6,6 @@ import '../../ui/registered_admin_screen.dart';
 import '../../ui/registered_user_screen.dart';
 import 'register_screen.dart';
 
-// pantalla de inicio de sesion
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
@@ -18,6 +17,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
+  bool _ocultarPassword = true;
 
   @override
   void initState() {
@@ -51,37 +51,20 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ),
                 ),
-                Positioned(
-                  top: 80,
-                  left: -50,
-                  child: _circle(200, Colors.white.withOpacity(0.05)),
-                ),
-                Positioned(
-                  top: 150,
-                  right: -30,
-                  child: _circle(150, Colors.white.withOpacity(0.05)),
-                ),
+                Positioned(top: 80, left: -50, child: _circle(200, Colors.white.withOpacity(0.05))),
+                Positioned(top: 150, right: -30, child: _circle(150, Colors.white.withOpacity(0.05))),
                 SafeArea(
                   child: Column(
                     children: [
                       const SizedBox(height: 60),
-                      const Text(
-                        "Welcome",
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 28,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
+                      const Text("Welcome", style: TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold)),
                       const SizedBox(height: 40),
                       Expanded(
                         child: Container(
                           padding: const EdgeInsets.only(top: 24, left: 24, right: 24),
                           decoration: const BoxDecoration(
                             color: Colors.white,
-                            borderRadius: BorderRadius.vertical(
-                              top: Radius.circular(40),
-                            ),
+                            borderRadius: BorderRadius.vertical(top: Radius.circular(40)),
                           ),
                           child: SingleChildScrollView(
                             physics: const BouncingScrollPhysics(),
@@ -92,19 +75,15 @@ class _LoginScreenState extends State<LoginScreen> {
                                   const SizedBox(height: 20),
                                   TextFormField(
                                     controller: _emailController,
-                                    decoration: InputDecoration(
-                                      prefixIcon: const Icon(Icons.email),
-                                      hintText: "Correo",
-                                      border: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
+                                    keyboardType: TextInputType.emailAddress,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Correo electrónico',
+                                      prefixIcon: Icon(Icons.email),
+                                      border: OutlineInputBorder(),
                                     ),
                                     validator: (value) {
                                       if (value == null || value.isEmpty) {
-                                        return "Ingresar correo";
-                                      }
-                                      if (!value.contains('@')) {
-                                        return "Correo invalido";
+                                        return 'Por favor ingresa tu correo';
                                       }
                                       return null;
                                     },
@@ -112,21 +91,23 @@ class _LoginScreenState extends State<LoginScreen> {
                                   const SizedBox(height: 20),
                                   TextFormField(
                                     controller: _passwordController,
-                                    obscureText: true,
+                                    obscureText: _ocultarPassword,
                                     decoration: InputDecoration(
+                                      labelText: 'Contraseña',
                                       prefixIcon: const Icon(Icons.lock),
-                                      hintText: "Contraseña",
-                                      border: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(12),
+                                      border: const OutlineInputBorder(),
+                                      suffixIcon: IconButton(
+                                        icon: Icon(_ocultarPassword ? Icons.visibility_off : Icons.visibility, color: Colors.grey),
+                                        onPressed: () {
+                                          setState(() {
+                                            _ocultarPassword = !_ocultarPassword;
+                                          });
+                                        },
                                       ),
                                     ),
                                     validator: (value) {
-                                      if (value == null || value.isEmpty) {
-                                        return "Introducir contraseña";
-                                      }
-                                      if (value.length < 6) {
-                                        return "Min 6 characters";
-                                      }
+                                      if (value == null || value.isEmpty) return "Introducir contraseña";
+                                      if (value.length < 6) return "Min 6 characters";
                                       return null;
                                     },
                                   ),
@@ -134,31 +115,18 @@ class _LoginScreenState extends State<LoginScreen> {
                                   SizedBox(
                                     width: double.infinity,
                                     child: ElevatedButton(
-                                      onPressed: viewModel.isLoading
-                                          ? null
-                                          : () => _handleLogin(context, viewModel),
+                                      onPressed: viewModel.isLoading ? null : () => _handleLogin(context, viewModel),
                                       style: ElevatedButton.styleFrom(
                                         padding: const EdgeInsets.symmetric(vertical: 16),
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(12),
-                                        ),
+                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                                       ),
-                                      child: viewModel.isLoading
-                                          ? const CircularProgressIndicator(
-                                        color: Colors.white,
-                                      )
-                                          : const Text("Log in"),
+                                      child: viewModel.isLoading ? const CircularProgressIndicator(color: Colors.white) : const Text("Log in"),
                                     ),
                                   ),
                                   const SizedBox(height: 15),
                                   OutlinedButton(
                                     onPressed: () {
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (context) => const RegisterPage(),
-                                        ),
-                                      );
+                                      Navigator.push(context, MaterialPageRoute(builder: (context) => const RegisterPage()));
                                     },
                                     child: const Text("Registrarse"),
                                   ),
@@ -190,35 +158,19 @@ class _LoginScreenState extends State<LoginScreen> {
 
     if (success && mounted) {
       final role = viewModel.currentUser?.role ?? 'usuario';
-
       if (role == 'admin') {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => const RegisteredAdminScreen()),
-        );
+        Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const RegisteredAdminScreen()));
       } else {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => const RegisteredUserScreen()),
-        );
+        Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const RegisteredUserScreen()));
       }
     } else {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(viewModel.error ?? "Fallo durante inicio de sesion")),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(viewModel.error ?? "Fallo durante inicio de sesion")));
       }
     }
   }
 
   Widget _circle(double size, Color color) {
-    return Container(
-      height: size,
-      width: size,
-      decoration: BoxDecoration(
-        color: color,
-        shape: BoxShape.circle,
-      ),
-    );
+    return Container(height: size, width: size, decoration: BoxDecoration(color: color, shape: BoxShape.circle));
   }
 }

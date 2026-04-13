@@ -16,7 +16,7 @@ class ReportesViewModel extends ChangeNotifier {
   String filtroPrioridadLocal = 'todas';
   bool mostrarSoloAtendidos = false;
 
-  StreamSubscription? _reportesSubscription; // <-- Nuestra variable de control
+  StreamSubscription? _reportesSubscription;
 
   Future<void> cargarReportes() async {
     try {
@@ -38,10 +38,8 @@ class ReportesViewModel extends ChangeNotifier {
         stream = _reporteService.obtenerTodosReportes();
       }
 
-      // Cancelamos cualquier escucha anterior para no duplicar datos
       await _reportesSubscription?.cancel();
 
-      // Guardamos la nueva escucha
       _reportesSubscription = stream.listen((reportesList) {
         reportes = reportesList;
         cargando = false;
@@ -58,7 +56,6 @@ class ReportesViewModel extends ChangeNotifier {
     }
   }
 
-  // Es buena práctica limpiar la memoria cuando el ViewModel se destruye
   @override
   void dispose() {
     _reportesSubscription?.cancel();
@@ -95,12 +92,11 @@ class ReportesViewModel extends ChangeNotifier {
   List<ReporteModel> get reportesFiltrados {
     return reportes.where((r) {
       final cumplePrioridad = filtroPrioridadLocal == 'todas' || r.severidad == filtroPrioridadLocal;
-      final cumpleAtendido = mostrarSoloAtendidos ? r.estaCompleto : true; // Si es true, solo muestra atendidos
+      final cumpleAtendido = mostrarSoloAtendidos ? r.estaCompleto : true;
       return cumplePrioridad && cumpleAtendido;
     }).toList();
   }
 
-  // Métodos para cambiar los filtros
   void setFiltroPrioridadLocal(String prioridad) {
     filtroPrioridadLocal = prioridad;
     notifyListeners();
@@ -111,12 +107,9 @@ class ReportesViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  // Método para eliminar
   Future<void> eliminarReporteLocal(String reportId) async {
     try {
       await _reporteService.eliminarReporte(reportId);
-      // No necesitas quitarlo de la lista manualmente, el Stream de Firebase
-      // lo detectará y actualizará la pantalla automáticamente.
     } catch (e) {
       error = e.toString();
       notifyListeners();

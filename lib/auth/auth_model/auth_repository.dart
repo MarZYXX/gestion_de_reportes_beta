@@ -29,7 +29,6 @@ class AuthRepository {
       String base64Image = base64Encode(bytes);
       String dataUrl = "data:image/jpeg;base64,$base64Image";
 
-      // LOG DE SEGURIDAD: Si esto mide más de 1,000,000, va a fallar.
       debugPrint("Tamaño del Base64: ${dataUrl.length} caracteres");
 
       await _firestore.collection('users').doc(uid).update({
